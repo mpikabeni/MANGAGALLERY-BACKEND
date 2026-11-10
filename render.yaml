@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: nexa-manga-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 main:app
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: TELEGRAM_WEBHOOK_SECRET
+        generateValue: true
+      # to fill in the Render dashboard (never commit them):
+      - key: DATABASE_URL
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_USERNAME
+        sync: false
+      - key: TELEGRAM_MINI_APP_URL
+        sync: false
+      - key: PUBLIC_BACKEND_URL
+        sync: false
+      - key: ADMIN_TELEGRAM_ID
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
