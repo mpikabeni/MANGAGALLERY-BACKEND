@@ -13,6 +13,7 @@ Un projet **Nexa** · canal obligatoire : **@Nexa_CG** · version **V2.05**
 - Textes utilisateurs nettoyés (pas de HTML dans les noms), URLs d'images limitées à http(s), uploads vérifiés avec Pillow et renommés aléatoirement.
 
 ## Déploiement (Render)
+0. **Python 3.12 obligatoire** : sur Render, ajoute la variable `PYTHON_VERSION=3.12.11` (par défaut Render prend 3.14, pour lequel `psycopg-binary` et `Pillow` n'ont pas de version précompilée et le build échoue).
 1. Créer une base PostgreSQL et un *Web Service* sur ce dossier (`render.yaml` fourni).
 2. Variables d'environnement : voir `.env.example` (`SECRET_KEY`, `JWT_SECRET_KEY`, `TELEGRAM_WEBHOOK_SECRET` : 48+ caractères aléatoires).
 3. **Votre identifiant Telegram** (numérique, via @userinfobot) → `ADMIN_TELEGRAM_ID`.
