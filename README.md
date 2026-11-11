@@ -2,6 +2,15 @@
 
 Un projet **Nexa** · canal obligatoire : **@Nexa_CG** · version **V2.05**
 
+## Liens du projet
+- Mini app (Netlify) : https://mangagalleryzone.netlify.app
+- API (Render) : https://mangagallery-backend-8d98.onrender.com  — santé : `/health`, config publique : `/api/config`
+
+## Données stockées côté serveur (V2.05)
+Favoris, reprise de lecture (page par chapitre, chapitres lus) et préférences (langue, thème, mode de lecteur) sont enregistrés
+dans PostgreSQL, donc synchronisés entre appareils : `/api/library/favorites`, `/history`, `/progress`, `/prefs`, `/summary`.
+Les trois tables (`favorites`, `reading_progress`, `user_prefs`) sont **créées automatiquement au démarrage** (sans toucher aux données existantes).
+
 ## Sécurité en bref
 - Connexion **uniquement par Telegram** : le backend vérifie la signature `initData` (HMAC) avec le token du bot. Un faux `telegram_id` est refusé.
 - **Canal obligatoire** : sans avoir rejoint `@Nexa_CG`, `/api/auth/telegram` répond `403 NOT_MEMBER` (le bot applique la même règle avant d'afficher le mini app).

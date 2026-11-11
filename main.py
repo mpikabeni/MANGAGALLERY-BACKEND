@@ -11,7 +11,8 @@ from config import Config, validate_config
 from database import db, init_database
 
 # Import every model before create_all / mapper configuration.
-from models import Admin, Category, Chapter, Comment, Manga, Media, Notification, Report, Role, Settings, User  # noqa: F401
+from models import (Admin, Category, Chapter, Comment, Favorite, Manga, Media, Notification, ReadingProgress,  # noqa: F401
+                    Report, Role, Settings, User, UserPref)
 
 validate_config()
 
@@ -51,6 +52,7 @@ from routes.auth import auth_bp  # noqa: E402
 from routes.categories import categories_bp  # noqa: E402
 from routes.chapters import chapters_bp  # noqa: E402
 from routes.comments import comments_bp  # noqa: E402
+from routes.library import library_bp  # noqa: E402
 from routes.mangas import mangas_bp  # noqa: E402
 from routes.media import media_bp  # noqa: E402
 from routes.notifications import notifications_bp  # noqa: E402
@@ -66,7 +68,7 @@ for blueprint, prefix in [
     (auth_bp, "auth"), (mangas_bp, "mangas"), (chapters_bp, "chapters"), (categories_bp, "categories"),
     (users_bp, "users"), (comments_bp, "comments"), (notifications_bp, "notifications"),
     (statistics_bp, "statistics"), (reports_bp, "reports"), (media_bp, "media"), (roles_bp, "roles"),
-    (settings_bp, "settings"), (system_bp, "system"), (telegram_bp, "telegram"),
+    (settings_bp, "settings"), (system_bp, "system"), (telegram_bp, "telegram"), (library_bp, "library"),
 ]:
     app.register_blueprint(blueprint, url_prefix=f"/api/{prefix}")
 
@@ -132,6 +134,17 @@ if Config.AUTO_CREATE_TABLES:
             db.create_all()
         except Exception:  # another gunicorn worker may be creating them at the same time
             db.session.rollback()
+
+
+# The library tables (favorites, reading progress, preferences) are new: create them if missing.
+# create_all-style, idempotent, never touches existing tables or data.
+with app.app_context():
+    try:
+        for model in (Favorite, ReadingProgress, UserPref):
+            model.__table__.create(bind=db.engine, checkfirst=True)
+    except Exception:  # race with another worker, or base tables not created yet (AUTO_CREATE_TABLES)
+        db.session.rollback()
+        app.logger.warning("Library tables not created yet (they will be on the next start).")
 
 
 @app.cli.command("init-db")

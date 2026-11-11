@@ -9,6 +9,8 @@ load_dotenv(BASE_DIR / ".env")
 
 APP_VERSION = "V2.05"          # single source of truth for the displayed version
 REQUIRED_CHANNEL = "@Nexa_CG"  # users must join this channel before using the mini app
+FRONTEND_URL = "https://mangagalleryzone.netlify.app"             # the mini app (Netlify)
+BACKEND_URL = "https://mangagallery-backend-8d98.onrender.com"     # this API (Render)
 
 
 def _bool(name, default="false"):
@@ -66,14 +68,14 @@ class Config:
     MAX_PAGE_SIZE = _int("MAX_PAGE_SIZE", 100)
 
     # ---- CORS (comma separated list of origins)
-    CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
+    CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", FRONTEND_URL).split(",") if o.strip()]
 
     # ---- Telegram
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "").strip().lstrip("@")
-    TELEGRAM_MINI_APP_URL = os.getenv("TELEGRAM_MINI_APP_URL", "").strip()
+    TELEGRAM_MINI_APP_URL = os.getenv("TELEGRAM_MINI_APP_URL", FRONTEND_URL).strip()
     TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
-    PUBLIC_BACKEND_URL = os.getenv("PUBLIC_BACKEND_URL", "").strip()
+    PUBLIC_BACKEND_URL = os.getenv("PUBLIC_BACKEND_URL", BACKEND_URL).strip()
     REQUIRED_CHANNEL = os.getenv("REQUIRED_CHANNEL", REQUIRED_CHANNEL).strip() or REQUIRED_CHANNEL
     TELEGRAM_INITDATA_MAX_AGE = _int("TELEGRAM_INITDATA_MAX_AGE", 86400)
 
