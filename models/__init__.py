@@ -2,6 +2,7 @@ from .admin import Admin
 from .category import Category
 from .chapter import Chapter
 from .comment import Comment
+from .library import Favorite, ReadingProgress, UserPref
 from .manga import Manga
 from .media import Media
 from .notification import Notification
@@ -10,5 +11,5 @@ from .role import Role
 from .settings import Settings
 from .user import User
 
-__all__ = ["Admin", "Category", "Chapter", "Comment", "Manga", "Media",
+__all__ = ["Admin", "Category", "Chapter", "Comment", "Favorite", "Manga", "Media", "ReadingProgress", "UserPref",
            "Notification", "Report", "Role", "Settings", "User"]
