@@ -29,7 +29,7 @@ if not Config.ADMIN_TELEGRAM_ID:
 with app.app_context():
     role = Role.query.filter_by(name="admin").first()
     if not role:
-        role = Role(name="admin", description="Administrateur unique de Nexa Manga", permissions=PERMS,
+        role = Role(name="admin", description="Administrateur unique de Manga Gallery FR", permissions=PERMS,
                     is_system=True, is_active=True)
         db.session.add(role)
         db.session.flush()
