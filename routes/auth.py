@@ -42,7 +42,7 @@ def _tokens(user):
 
 def _gate(telegram_id):
     """Return an error response if this Telegram user may not enter, else None."""
-    if is_owner(telegram_id):
+    if is_owner(telegram_id) or not Config.CHANNEL_GATE:
         return None
     try:
         if not is_channel_member(telegram_id):
@@ -113,6 +113,33 @@ def me():
     if not user or user.status != "active":
         return fail("Utilisateur introuvable", 401)
     return jsonify(success=True, user=_public_user(user), version=Config.APP_VERSION)
+
+
+@auth_bp.post("/adult-confirm")
+@jwt_required()
+def adult_confirm():
+    """The user declares being 18 or older: unlocks La Sainte Culture (stored server-side, on every device)."""
+    user = current_user()
+    if not user or user.status != "active":
+        return fail("Utilisateur introuvable", 401)
+    if (request.get_json(silent=True) or {}).get("confirm") is not True:
+        return fail("Confirmation requise", 400)
+    from datetime import datetime
+    user.adult_confirmed_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify(success=True, user=_public_user(user))
+
+
+@auth_bp.delete("/adult-confirm")
+@jwt_required()
+def adult_revoke():
+    """Lock La Sainte Culture again for this account."""
+    user = current_user()
+    if not user or user.status != "active":
+        return fail("Utilisateur introuvable", 401)
+    user.adult_confirmed_at = None
+    db.session.commit()
+    return jsonify(success=True, user=_public_user(user))
 
 
 @auth_bp.get("/verify")

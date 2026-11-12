@@ -3,10 +3,10 @@ from flask import Blueprint, jsonify, request
 from database import db
 from models.chapter import Chapter
 from models.comment import Comment
-from models.manga import Manga
+from models.manga import SECTION_ADULT, Manga
 from models.report import Report
 from models.user import User
-from utils.authz import current_user, is_admin, require_admin, require_user, viewer_is_admin
+from utils.authz import current_user, is_admin, require_admin, require_user, viewer_adult_ok, viewer_is_admin
 from utils.http import fail, like_pattern, paginate, search_term
 from utils.security import clean_multiline, limiter
 
@@ -40,6 +40,11 @@ def list_comments():
         q = q.filter(Comment.status.in_(PUBLIC))
     elif request.args.get("status"):
         q = q.filter(Comment.status == request.args["status"])
+    if not viewer_adult_ok():   # comments of La Sainte Culture stay behind the 18+ confirmation
+        adult_ids = db.select(Manga.id).where(Manga.section == SECTION_ADULT)
+        adult_chapters = db.select(Chapter.id).where(Chapter.manga_id.in_(adult_ids))
+        q = q.filter(db.or_(Comment.manga_id.is_(None), ~Comment.manga_id.in_(adult_ids)))
+        q = q.filter(db.or_(Comment.chapter_id.is_(None), ~Comment.chapter_id.in_(adult_chapters)))
     if request.args.get("manga_id", type=int):
         q = q.filter(Comment.manga_id == request.args.get("manga_id", type=int))
     if request.args.get("chapter_id", type=int):
@@ -80,8 +85,13 @@ def create_comment():
         return fail("manga_id ou chapter_id requis")
     if manga_id and not Manga.query.filter_by(id=manga_id, visibility="public").first() and not is_admin(user):
         return fail("Manga introuvable", 404)
-    if chapter_id and not Chapter.query.get(chapter_id):
+    chapter = Chapter.query.get(chapter_id) if chapter_id else None
+    if chapter_id and not chapter:
         return fail("Chapitre introuvable", 404)
+    adult_ids = [m for m in (manga_id, chapter.manga_id if chapter else None) if m]
+    if adult_ids and not viewer_adult_ok() and \
+            Manga.query.filter(Manga.id.in_(adult_ids), Manga.section == SECTION_ADULT).first():
+        return fail("Espace réservé aux adultes (18+).", 403, code="ADULT_REQUIRED")
     c = Comment(user_id=user.id, manga_id=manga_id, chapter_id=chapter_id, content=content, status="published")
     db.session.add(c)
     db.session.commit()

@@ -6,10 +6,11 @@ from flask import Blueprint, jsonify, request
 from database import db
 from models.chapter import Chapter
 from models.library import Favorite, ReadingProgress, UserPref
-from models.manga import Manga
+from models.manga import SECTION_ADULT, Manga
 from routes.mangas import _serialize_batch
-from utils.authz import current_user, viewer_is_admin
+from utils.authz import current_user, viewer_adult_ok, viewer_is_admin
 from utils.authz import require_user
+from utils.sections import can_view_manga
 from utils.http import fail
 from utils.security import limiter
 
@@ -28,9 +29,7 @@ def _uid():
 
 def _visible_manga(manga_id):
     m = Manga.query.get(manga_id)
-    if not m or (m.visibility != "public" and not viewer_is_admin()):
-        return None
-    return m
+    return m if can_view_manga(m) else None
 
 
 def _int(value, default=None, lo=None, hi=None):
@@ -56,6 +55,8 @@ def list_favorites():
         q = Manga.query.filter(Manga.id.in_(ids))
         if not viewer_is_admin():
             q = q.filter(Manga.visibility == "public")
+        if not viewer_adult_ok():
+            q = q.filter(Manga.section != SECTION_ADULT)
         by_id = {m.id: m for m in q.all()}
     rows = [by_id[i] for i in ids if i in by_id]
     items = _serialize_batch(rows) if rows else []
@@ -106,7 +107,7 @@ def clear_favorites():
 
 # ------------------------------------------------------------------ reading history
 def _entry(p, manga):
-    return {"manga": {"id": manga.id, "title": manga.title, "cover_url": manga.cover_url},
+    return {"manga": {"id": manga.id, "title": manga.title, "cover_url": manga.cover_url, "section": manga.section},
             "chapter_id": p.chapter_id, "number": p.chapter_number, "page": p.page, "total": p.total,
             "read": p.read_chapters or [], "updated_at": p.updated_at.isoformat() if p.updated_at else None}
 
@@ -118,7 +119,8 @@ def history():
             .limit(MAX_HISTORY).all())
     mangas = {m.id: m for m in Manga.query.filter(Manga.id.in_({p.manga_id for p in rows})).all()} if rows else {}
     items = [_entry(p, mangas[p.manga_id]) for p in rows
-             if p.manga_id in mangas and p.chapter_id and (mangas[p.manga_id].visibility == "public" or viewer_is_admin())]
+             if p.manga_id in mangas and p.chapter_id and (mangas[p.manga_id].visibility == "public" or viewer_is_admin())
+             and (mangas[p.manga_id].section != SECTION_ADULT or viewer_adult_ok())]
     return jsonify(success=True, items=items, total=len(items))
 
 

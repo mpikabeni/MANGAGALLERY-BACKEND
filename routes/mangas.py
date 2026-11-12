@@ -3,10 +3,11 @@ from flask import Blueprint, jsonify, request
 from database import db
 from models.category import Category
 from models.chapter import Chapter
-from models.manga import Manga
-from utils.authz import current_user, require_admin, require_user, viewer_is_admin
+from models.manga import ALL_TYPES, SECTION_ADULT, SECTION_NORMAL, SECTIONS, TYPES_BY_SECTION, Manga
+from utils.authz import current_user, require_admin, require_user, viewer_adult_ok, viewer_is_admin
 from utils.http import fail, like_pattern, paginate, pick, search_term
 from utils.security import clean_multiline, clean_text, is_safe_url
+from utils.sections import adult_denied, requested_section, requested_type
 from utils.slug import slugify, unique_slug
 
 mangas_bp = Blueprint("mangas", __name__)
@@ -41,10 +42,15 @@ def _serialize_batch(rows):
     return out
 
 
-def _query():
+def _query(section=None):
     q = Manga.query
     if not viewer_is_admin():
         q = q.filter(Manga.visibility == "public")
+    if section:
+        q = q.filter(Manga.section == section)
+    ctype = requested_type()
+    if ctype:
+        q = q.filter(Manga.content_type == ctype)
     term = search_term()
     if term:
         q = q.filter(Manga.title.ilike(like_pattern(term), escape="\\"))
@@ -61,7 +67,10 @@ def _query():
 @mangas_bp.get("/")
 @require_user
 def list_mangas():
-    return paginate(_query(), batch=_serialize_batch, key="mangas")
+    section = requested_section()
+    if section == SECTION_ADULT and not viewer_adult_ok():
+        return adult_denied()
+    return paginate(_query(section), batch=_serialize_batch, key="mangas")
 
 
 @mangas_bp.get("/search")
@@ -76,6 +85,8 @@ def get_manga(manga_id):
     manga = Manga.query.get(manga_id)
     if not manga or (manga.visibility != "public" and not viewer_is_admin()):
         return fail("Manga introuvable", 404)
+    if manga.section == SECTION_ADULT and not viewer_adult_ok():
+        return adult_denied()
     data = _serialize_batch([manga])[0]
     cq = Chapter.query.filter_by(manga_id=manga.id)
     if not viewer_is_admin():
@@ -111,6 +122,14 @@ def _validated(data, partial=False):
         if data["visibility"] not in VISIBILITIES:
             return None, "Visibilité invalide"
         out["visibility"] = data["visibility"]
+    if "section" in data:
+        if data["section"] not in SECTIONS:
+            return None, "Section invalide (normal ou sainte_culture)"
+        out["section"] = data["section"]
+    if "content_type" in data:
+        if data["content_type"] not in ALL_TYPES:
+            return None, "Type invalide (manga, webtoon ou comic)"
+        out["content_type"] = data["content_type"]
     if "category_id" in data:
         cid = data.get("category_id")
         if cid in (None, ""):
@@ -126,15 +145,31 @@ def _validated(data, partial=False):
     return out, None
 
 
+def _check_combo(section, ctype):
+    """La Sainte Culture only accepts webtoons and bandes dessinées."""
+    if ctype not in TYPES_BY_SECTION.get(section, ()):
+        if section == SECTION_ADULT:
+            return "La Sainte Culture accepte uniquement les webtoons et les bandes dessinées."
+        return "Type invalide pour cette section."
+    return None
+
+
 @mangas_bp.post("/")
 @require_admin
 def create_manga():
     data = request.get_json(silent=True) or {}
-    fields, err = _validated(data)
+    fields, err = _validated(pick(data, ("title", "slug", "description", "cover_url", "banner_url", "status",
+                                         "visibility", "category_id", "section", "content_type")))
     if err:
         return fail(err)
     fields.setdefault("status", "ongoing")
     fields.setdefault("visibility", "public")
+    fields.setdefault("section", SECTION_NORMAL)
+    fields.setdefault("content_type", "manga")
+    err = _check_combo(fields["section"], fields["content_type"])
+    if err:
+        return fail(err)
+    fields.pop("slug", None)
     fields["slug"] = unique_slug(Manga, slugify(data.get("slug") or fields["title"], "manga"))
     user = current_user()
     manga = Manga(author_id=user.id if user else None, **fields)
@@ -151,7 +186,10 @@ def update_manga(manga_id):
         return fail("Manga introuvable", 404)
     data = request.get_json(silent=True) or {}
     fields, err = _validated(pick(data, ("title", "description", "cover_url", "banner_url", "status",
-                                         "visibility", "category_id")), partial=True)
+                                         "visibility", "category_id", "section", "content_type")), partial=True)
+    if err:
+        return fail(err)
+    err = _check_combo(fields.get("section", manga.section), fields.get("content_type", manga.content_type))
     if err:
         return fail(err)
     for k, v in fields.items():

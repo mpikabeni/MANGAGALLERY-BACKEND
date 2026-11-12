@@ -4,10 +4,11 @@ from flask import Blueprint, jsonify, request
 
 from database import db
 from models.chapter import Chapter
-from models.manga import Manga
-from utils.authz import require_admin, require_user, viewer_is_admin
+from models.manga import SECTION_ADULT, Manga
+from utils.authz import require_admin, require_user, viewer_adult_ok, viewer_is_admin
 from utils.http import fail, like_pattern, paginate, search_term
 from utils.security import clean_text, is_safe_url
+from utils.sections import adult_denied, requested_section
 from utils.slug import slugify
 
 chapters_bp = Blueprint("chapters", __name__)
@@ -20,6 +21,18 @@ def _visible(q):
     if viewer_is_admin():
         return q
     return q.filter(Chapter.visibility == "public", Chapter.status == "published")
+
+
+def _hide_adult(q):
+    """Chapters of La Sainte Culture are invisible to anybody who has not confirmed being 18+."""
+    if viewer_adult_ok():
+        return q
+    return q.filter(~Chapter.manga_id.in_(db.select(Manga.id).where(Manga.section == SECTION_ADULT)))
+
+
+def _adult_manga(manga_id):
+    m = Manga.query.get(manga_id)
+    return bool(m and m.section == SECTION_ADULT and not viewer_adult_ok())
 
 
 def _light(c):
@@ -43,7 +56,7 @@ def _clean_pages(pages):
 @chapters_bp.get("/")
 @require_user
 def list_chapters():
-    q = _visible(Chapter.query)
+    q = _hide_adult(_visible(Chapter.query))
     manga_id = request.args.get("manga_id", type=int)
     if manga_id:
         q = q.filter(Chapter.manga_id == manga_id)
@@ -54,7 +67,18 @@ def list_chapters():
     if term:
         q = q.filter(Chapter.title.ilike(like_pattern(term), escape="\\"))
     sort = Chapter.number.desc() if request.args.get("order") == "desc" else Chapter.number.asc()
-    return paginate(q.order_by(Chapter.manga_id, sort), _light, key="chapters")
+
+    def batch(rows):
+        mangas = {m.id: m for m in Manga.query.filter(Manga.id.in_({c.manga_id for c in rows})).all()} if rows else {}
+        out = []
+        for c in rows:
+            d = _light(c)
+            m = mangas.get(c.manga_id)
+            d["manga"] = {"id": m.id, "title": m.title, "section": m.section, "content_type": m.content_type} if m else None
+            d["manga_title"] = m.title if m else ""
+            out.append(d)
+        return out
+    return paginate(q.order_by(Chapter.manga_id, sort), batch=batch, key="chapters")
 
 
 @chapters_bp.get("/search")
@@ -67,9 +91,16 @@ def search_chapters():
 @require_user
 def latest_chapters():
     """Latest published chapters with their manga (home page 'updates')."""
+    section = requested_section()
+    if section == SECTION_ADULT and not viewer_adult_ok():
+        return adult_denied()
     q = _visible(Chapter.query).join(Manga, Manga.id == Chapter.manga_id)
     if not viewer_is_admin():
         q = q.filter(Manga.visibility == "public")
+    if section:
+        q = q.filter(Manga.section == section)
+    elif not viewer_adult_ok():
+        q = q.filter(Manga.section != SECTION_ADULT)
     q = q.order_by(Chapter.published_at.desc().nullslast(), Chapter.id.desc())
 
     def batch(rows):
@@ -78,7 +109,8 @@ def latest_chapters():
         for c in rows:
             d = _light(c)
             m = mangas.get(c.manga_id)
-            d["manga"] = {"id": m.id, "title": m.title, "cover_url": m.cover_url} if m else None
+            d["manga"] = ({"id": m.id, "title": m.title, "cover_url": m.cover_url, "section": m.section}
+                          if m else None)
             out.append(d)
         return out
     return paginate(q, batch=batch, key="chapters")
@@ -90,6 +122,8 @@ def get_chapter(chapter_id):
     c = _visible(Chapter.query).filter(Chapter.id == chapter_id).first()
     if not c:
         return fail("Chapitre introuvable", 404)
+    if _adult_manga(c.manga_id):
+        return adult_denied()
     return jsonify(c.to_dict())
 
 
@@ -99,6 +133,8 @@ def read_chapter(chapter_id):
     c = _visible(Chapter.query).filter(Chapter.id == chapter_id).first()
     if not c:
         return fail("Chapitre introuvable", 404)
+    if _adult_manga(c.manga_id):
+        return adult_denied()
     siblings = _visible(Chapter.query).filter(Chapter.manga_id == c.manga_id)
     prev_c = siblings.filter(Chapter.number < c.number).order_by(Chapter.number.desc()).first()
     next_c = siblings.filter(Chapter.number > c.number).order_by(Chapter.number.asc()).first()
