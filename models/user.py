@@ -99,6 +99,12 @@ class User(db.Model):
         nullable=True
     )
 
+    # La Sainte Culture (18+) : date à laquelle la personne a déclaré avoir 18 ans ou plus
+    adult_confirmed_at = db.Column(
+        db.DateTime,
+        nullable=True
+    )
+
     # ==================================
     # DATES
     # ==================================
@@ -189,6 +195,7 @@ class User(db.Model):
             "role_id": self.role_id,
             "status": self.status,
             "is_verified": self.is_verified,
+            "adult_confirmed": bool(self.adult_confirmed_at),
             "last_login":
                 self.last_login.isoformat()
                 if self.last_login

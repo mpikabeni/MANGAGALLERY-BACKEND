@@ -3,6 +3,20 @@ from datetime import datetime
 from database import db
 
 
+# ==================================
+# SECTIONS / TYPES
+# ==================================
+SECTION_NORMAL = "normal"             # la galerie classique
+SECTION_ADULT = "sainte_culture"      # La Sainte Culture (18+)
+SECTIONS = {SECTION_NORMAL, SECTION_ADULT}
+TYPE_MANGA, TYPE_WEBTOON, TYPE_COMIC = "manga", "webtoon", "comic"     # comic = bande dessinée
+TYPES_BY_SECTION = {
+    SECTION_NORMAL: {TYPE_MANGA, TYPE_WEBTOON, TYPE_COMIC},
+    SECTION_ADULT: {TYPE_WEBTOON, TYPE_COMIC},                          # La Sainte Culture : webtoon + BD uniquement
+}
+ALL_TYPES = {TYPE_MANGA, TYPE_WEBTOON, TYPE_COMIC}
+
+
 class Manga(db.Model):
     __tablename__ = "mangas"
 
@@ -61,6 +75,22 @@ class Manga(db.Model):
         db.String(30),
         nullable=False,
         default="public"
+    )
+
+    section = db.Column(
+        db.String(30),
+        nullable=False,
+        default=SECTION_NORMAL,
+        server_default=SECTION_NORMAL,
+        index=True
+    )
+
+    content_type = db.Column(
+        db.String(30),
+        nullable=False,
+        default=TYPE_MANGA,
+        server_default=TYPE_MANGA,
+        index=True
     )
 
     # ==================================
@@ -169,6 +199,12 @@ class Manga(db.Model):
             "status": self.status,
 
             "visibility": self.visibility,
+
+            "section": self.section or SECTION_NORMAL,
+
+            "content_type": self.content_type or TYPE_MANGA,
+
+            "is_adult": (self.section == SECTION_ADULT),
 
             "author_id": self.author_id,
 

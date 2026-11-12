@@ -111,7 +111,9 @@ class Category(db.Model):
 
         back_populates="category",
 
-        cascade="all, delete-orphan",
+        cascade="save-update",
+
+        passive_deletes=True,
 
         lazy=True
 
