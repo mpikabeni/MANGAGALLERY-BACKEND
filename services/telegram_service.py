@@ -170,10 +170,14 @@ TEXTS = {
         "joined": "✅ J'ai rejoint",
         "not_yet": "Tu n'as pas encore rejoint le canal. Rejoins-le puis réessaie.",
         "welcome_title": "Bienvenue {name} sur Manga Gallery FR !",
-        "welcome_body": "Merci d'avoir rejoint {channel}. Ouvre l'application pour lire tes mangas, webtoons et bandes dessinées. 🔞 Retrouve aussi l'espace adulte « La Sainte Culture » (18+).",
+        "welcome_intro_gate": "Merci d'avoir rejoint {channel}, tu fais maintenant partie de la communauté Nexa. 🙌",
+        "welcome_intro_open": "Content de te voir ici ! Voici un petit tour de l'application. 🙌",
+        "welcome_main": "<b>📚 Qu'est-ce que Manga Gallery FR ?</b>\nTa bibliothèque de lecture directement dans Telegram : mangas, webtoons et bandes dessinées en français, sans rien installer.\n\n<b>✨ Ce que tu peux faire</b>\n• Parcourir la Galerie et filtrer par type : Manga, Webtoon ou Bande dessinée\n• Rechercher un titre, choisir une catégorie, ou te laisser surprendre au hasard\n• Lire en défilement vertical (idéal pour les webtoons) ou page par page\n• Mettre tes titres en favoris et reprendre exactement là où tu t'étais arrêté\n• Être prévenu des nouveaux chapitres grâce aux notifications\n• Choisir ton thème (6 thèmes + automatique) et ta langue : Français ou English\n\n<b>🔞 La Sainte Culture (18+)</b>\nUn espace séparé, réservé aux adultes : webtoons et bandes dessinées pour public majeur. Il ne s'ouvre qu'après avoir confirmé que tu as 18 ans ou plus, et tu peux le verrouiller à tout moment dans Réglages.\n\n<b>🚀 Pour commencer</b>\n1️⃣ Appuie sur « Ouvrir Manga Gallery FR » ci-dessous\n2️⃣ Explore la Galerie, ouvre un titre et lance un chapitre\n3️⃣ Ajoute-le en favori ❤️ pour le retrouver dans ta Bibliothèque\n\n<b>💡 Bon à savoir</b>\n• Tes favoris, ton historique et tes réglages sont enregistrés sur ton compte : ils te suivent sur tous tes appareils\n• Si l'application met quelques secondes à s'ouvrir, le serveur se réveille : patiente un instant, puis réessaie\n• Les annonces et les nouveautés sont sur {channel}\n\n<b>⌨️ Commandes</b>\n/start — ouvrir l'application\n/help — aide\n/version — version\n\n<i>Un projet Nexa · Bonne lecture ! 📖</i>",
+        "channel_btn": '📢 Canal {channel}',
         "open": "🚀 Ouvrir Manga Gallery FR",
-        "help": ("<b>Manga Gallery FR — {version}</b>\n\n/start — ouvrir l'application\n/help — aide\n"
-                 "/version — version\n\nUn projet Nexa · {channel}"),
+        "help": ("<b>Manga Gallery FR — {version}</b>\n\nLis mangas, webtoons et bandes dessinées dans Telegram, avec l'espace adulte "
+                 "« La Sainte Culture » (18+) en plus.\n\n/start — ouvrir l'application\n/help — cette aide\n/version — version\n\n"
+                 "Une question ou une suggestion ? Écris-nous sur {channel}.\n\nUn projet Nexa"),
         "version": "Manga Gallery FR — {version}",
         "error": "Service momentanément indisponible. Réessaie dans un instant.",
         "no_url": "L'application n'est pas encore configurée. Reviens bientôt.",
@@ -186,10 +190,14 @@ TEXTS = {
         "joined": "✅ I joined",
         "not_yet": "You haven't joined the channel yet. Join it, then try again.",
         "welcome_title": "Welcome {name} to Manga Gallery FR!",
-        "welcome_body": "Thanks for joining {channel}. Open the app to read manga, webtoons and comics. 🔞 The adult space “La Sainte Culture” (18+) is in there too.",
+        "welcome_intro_gate": 'Thanks for joining {channel}, you are now part of the Nexa community. 🙌',
+        "welcome_intro_open": 'Great to see you here! Here is a quick tour of the app. 🙌',
+        "welcome_main": '<b>📚 What is Manga Gallery FR?</b>\nYour reading library right inside Telegram: manga, webtoons and comics, with nothing to install.\n\n<b>✨ What you can do</b>\n• Browse the Gallery and filter by type: Manga, Webtoon or Comic\n• Search a title, pick a category, or let yourself be surprised at random\n• Read in vertical scroll (perfect for webtoons) or page by page\n• Add titles to your favorites and resume exactly where you stopped\n• Get notified about new chapters\n• Pick your theme (6 themes + automatic) and your language: Français or English\n\n<b>🔞 La Sainte Culture (18+)</b>\nA separate space for adults only: webtoons and comics for a mature audience. It only opens once you confirm you are 18 or older, and you can lock it again at any time in Settings.\n\n<b>🚀 Getting started</b>\n1️⃣ Tap “Open Manga Gallery FR” below\n2️⃣ Explore the Gallery, open a title and start a chapter\n3️⃣ Add it to your favorites ❤️ to find it in your Library\n\n<b>💡 Good to know</b>\n• Your favorites, history and settings are saved to your account: they follow you on every device\n• If the app takes a few seconds to open, the server is waking up: wait a moment, then try again\n• Announcements and news are on {channel}\n\n<b>⌨️ Commands</b>\n/start — open the app\n/help — help\n/version — version\n\n<i>A Nexa project · Happy reading! 📖</i>',
+        "channel_btn": '📢 Channel {channel}',
         "open": "🚀 Open Manga Gallery FR",
-        "help": ("<b>Manga Gallery FR — {version}</b>\n\n/start — open the app\n/help — help\n"
-                 "/version — version\n\nA Nexa project · {channel}"),
+        "help": ("<b>Manga Gallery FR — {version}</b>\n\nRead manga, webtoons and comics in Telegram, plus the adult space "
+                 "“La Sainte Culture” (18+).\n\n/start — open the app\n/help — this help\n/version — version\n\n"
+                 "A question or a suggestion? Write to us on {channel}.\n\nA Nexa project"),
         "version": "Manga Gallery FR — {version}",
         "error": "Service temporarily unavailable. Please try again in a moment.",
         "no_url": "The app is not configured yet. Please come back soon.",
@@ -224,12 +232,16 @@ def send_gate(chat_id, lang):
 
 def send_welcome(chat_id, tg_user, lang):
     name = html.escape(tg_user.get("first_name") or tg_user.get("username") or "")
-    text = f"<b>{_t(lang, 'welcome_title', name=name)}</b>\n\n{_t(lang, 'welcome_body')}"
+    intro = "welcome_intro_gate" if Config.CHANNEL_GATE else "welcome_intro_open"
+    text = (f"<b>{_t(lang, 'welcome_title', name=name)}</b>\n\n{_t(lang, intro)}\n\n{_t(lang, 'welcome_main')}")
     url = Config.TELEGRAM_MINI_APP_URL
     if not url.startswith("https://"):
         _send(chat_id, text + "\n\n" + _t(lang, "no_url"))
         return
-    _send(chat_id, text, {"inline_keyboard": [[{"text": _t(lang, "open"), "web_app": {"url": url}}]]})
+    _send(chat_id, text, {"inline_keyboard": [
+        [{"text": _t(lang, "open"), "web_app": {"url": url}}],
+        [{"text": _t(lang, "channel_btn"), "url": channel_url()}],
+    ]})
 
 
 def _allowed(user_id):
