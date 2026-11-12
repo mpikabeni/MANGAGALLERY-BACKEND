@@ -77,9 +77,11 @@ class Config:
     TELEGRAM_MINI_APP_URL = os.getenv("TELEGRAM_MINI_APP_URL", FRONTEND_URL).strip()
     TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
     PUBLIC_BACKEND_URL = os.getenv("PUBLIC_BACKEND_URL", BACKEND_URL).strip()
-    REQUIRED_CHANNEL = os.getenv("REQUIRED_CHANNEL", "").strip() or REQUIRED_CHANNEL
+    _channel_env = os.getenv("REQUIRED_CHANNEL", "").strip()
     # REQUIRED_CHANNEL=off|none|false|0 switches the channel gate off (useful while the bot is not yet admin of the channel)
-    CHANNEL_GATE = REQUIRED_CHANNEL.lower() not in {"off", "none", "false", "0", "no"}
+    CHANNEL_GATE = _channel_env.lower() not in {"off", "none", "false", "0", "no"}
+    # When the gate is off the channel is still shown as a link, so keep the real name (never "@off").
+    REQUIRED_CHANNEL = _channel_env if (_channel_env and CHANNEL_GATE) else REQUIRED_CHANNEL
     # Register the webhook + bot commands by itself when the server starts (production by default).
     BOT_AUTO_SETUP = _bool("BOT_AUTO_SETUP", "true" if os.getenv("APP_ENV", "development") == "production" else "false")
     TELEGRAM_INITDATA_MAX_AGE = _int("TELEGRAM_INITDATA_MAX_AGE", 86400)
