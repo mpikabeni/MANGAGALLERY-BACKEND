@@ -148,6 +148,12 @@ def _prepare_database():
         except Exception:
             db.session.rollback()
             app.logger.exception("Schema upgrade failed")
+        finally:
+            # gunicorn imports this module in the master process BEFORE forking the workers. A pooled SSL connection
+            # opened here would be inherited by every worker -> "SSL error: decryption failed or bad record mac".
+            # Closing the pool makes each worker open its own connections.
+            db.session.remove()
+            db.engine.dispose()
 
 
 def _bot_boot():
@@ -165,9 +171,10 @@ def _bot_boot():
     app.logger.error("Telegram setup failed. Open /api/telegram/health to see what is wrong.")
 
 
-_prepare_database()
+# The bot does not need the database: start its registration first so a database hiccup can never keep it silent.
 if Config.BOT_AUTO_SETUP and Config.TELEGRAM_BOT_TOKEN:
     threading.Thread(target=_bot_boot, name="telegram-boot", daemon=True).start()
+_prepare_database()
 
 
 @app.cli.command("init-db")
