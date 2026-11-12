@@ -212,3 +212,20 @@ class Media(db.Model):
             f"<Media {self.filename}>"
 
         )
+
+class MediaBlob(db.Model):
+    """An image uploaded by the administrator, stored IN the database.
+
+    Render's disk is wiped at every deploy, PostgreSQL is not: covers and chapter pages therefore live here and are
+    served by /api/uploads/<id>.jpg. The id is a random 128-bit token (the URL is only ever shown by endpoints that
+    already applied the visibility / 18+ rules)."""
+
+    __tablename__ = "media_blobs"
+
+    id = db.Column(db.String(40), primary_key=True)
+    mime = db.Column(db.String(60), nullable=False, default="image/jpeg")
+    size = db.Column(db.Integer, nullable=False, default=0)
+    width = db.Column(db.Integer, nullable=True)
+    height = db.Column(db.Integer, nullable=True)
+    data = db.deferred(db.Column(db.LargeBinary, nullable=False))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
