@@ -62,7 +62,7 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True, "pool_recycle": 280}
 
     # ---- uploads / pagination
-    MAX_CONTENT_LENGTH = 20 * 1024 * 1024
+    MAX_CONTENT_LENGTH = 150 * 1024 * 1024   # chapters are uploaded as PDF / CBZ
     ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
     MEDIA_UPLOAD_DIR = os.getenv("MEDIA_UPLOAD_DIR", str(BASE_DIR / "uploads"))
     DEFAULT_PAGE_SIZE = _int("DEFAULT_PAGE_SIZE", 20)

@@ -58,6 +58,7 @@ from routes.comments import comments_bp  # noqa: E402
 from routes.library import library_bp  # noqa: E402
 from routes.mangas import mangas_bp  # noqa: E402
 from routes.media import media_bp  # noqa: E402
+from routes.uploads import uploads_bp  # noqa: E402
 from routes.notifications import notifications_bp  # noqa: E402
 from routes.reports import reports_bp  # noqa: E402
 from routes.roles import roles_bp  # noqa: E402
@@ -70,7 +71,7 @@ from routes.users import users_bp  # noqa: E402
 for blueprint, prefix in [
     (auth_bp, "auth"), (mangas_bp, "mangas"), (chapters_bp, "chapters"), (categories_bp, "categories"),
     (users_bp, "users"), (comments_bp, "comments"), (notifications_bp, "notifications"),
-    (statistics_bp, "statistics"), (reports_bp, "reports"), (media_bp, "media"), (roles_bp, "roles"),
+    (statistics_bp, "statistics"), (reports_bp, "reports"), (media_bp, "media"), (uploads_bp, "uploads"), (roles_bp, "roles"),
     (settings_bp, "settings"), (system_bp, "system"), (telegram_bp, "telegram"), (library_bp, "library"),
 ]:
     app.register_blueprint(blueprint, url_prefix=f"/api/{prefix}")

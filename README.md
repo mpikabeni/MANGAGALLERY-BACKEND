@@ -37,7 +37,7 @@ Si le bot reste muet, ouvrez `/api/telegram/health` : il liste les problèmes (w
 - Textes utilisateurs nettoyés, URLs d'images limitées à http(s).
 
 ## Déploiement (Render)
-0. **Python 3.12 obligatoire** : variable `PYTHON_VERSION=3.12.11` (déjà dans `render.yaml`).
+0. Démarrage : `gunicorn --workers 2 --threads 4 --timeout 300 main:app` (les gros PDF demandent du temps). **Python 3.12 obligatoire** : variable `PYTHON_VERSION=3.12.11` (déjà dans `render.yaml`).
 1. Créer une base PostgreSQL et un *Web Service* sur ce dossier (`render.yaml` fourni).
 2. Variables : voir `.env.example`. Obligatoires : `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `PUBLIC_BACKEND_URL`,
    `TELEGRAM_MINI_APP_URL`, `ADMIN_TELEGRAM_ID` (votre identifiant numérique, via @userinfobot), `CORS_ORIGINS`.
@@ -55,5 +55,9 @@ python bot.py           # bot en long polling (sans webhook)
 
 ## Notes
 - Limiteur de débit en mémoire (par processus gunicorn).
-- Le disque de Render gratuit est éphémère : les pages de chapitres et les couvertures se publient avec des **URLs d'images**
-  (hébergement externe), ou un disque persistant sur `MEDIA_UPLOAD_DIR`.
+- **Téléversement par l'administrateur** (`/api/uploads/…`) : couvertures, bannières et chapitres complets s'envoient directement
+  depuis l'admin, sans lien. Formats de chapitre : **PDF, CBZ, ZIP, CBT** et images (jpg, png, webp, gif). Un CBR qui est en
+  réalité un ZIP est accepté ; un vrai RAR ou 7z doit être converti en CBZ. Les images sont optimisées (JPEG, 1600 px max) et
+  **stockées dans PostgreSQL** (table `media_blobs`) : elles survivent aux redéploiements de Render. 150 Mo maximum par envoi,
+  400 pages maximum par envoi. Les images d'un chapitre ou d'un titre supprimé sont libérées automatiquement.
+- Les liens d'images (https) restent possibles en complément.
