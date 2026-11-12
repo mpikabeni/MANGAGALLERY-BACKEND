@@ -1,5 +1,7 @@
-"""Nexa Manga - Flask application (canonical entry point, WSGI object: `app`)."""
+"""Manga Gallery FR - Flask application (canonical entry point, WSGI object: `app`)."""
 import logging
+import threading
+import time
 
 from flask import Flask, jsonify
 from flask_cors import CORS
@@ -9,6 +11,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import Config, validate_config
 from database import db, init_database
+from utils.schema import ensure_schema
 
 # Import every model before create_all / mapper configuration.
 from models import (Admin, Category, Chapter, Comment, Favorite, Manga, Media, Notification, ReadingProgress,  # noqa: F401
@@ -23,7 +26,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)  # Render si
 logging.basicConfig(level=logging.INFO)
 
 if "*" in Config.CORS_ORIGINS:
-    app.logger.warning("CORS_ORIGINS=* : restreins-le au domaine du mini app (ex. https://nexa-manga.netlify.app)")
+    app.logger.warning("CORS_ORIGINS=* : restreins-le au domaine du mini app (ex. https://mangagalleryzone.netlify.app)")
 CORS(app, resources={r"/api/*": {"origins": Config.CORS_ORIGINS}, r"/health": {"origins": "*"}},
      supports_credentials=False, allow_headers=["Authorization", "Content-Type"], max_age=600)
 
@@ -85,9 +88,12 @@ def public_config():
     except Exception:
         db.session.rollback()
     return jsonify(success=True, app_name=Config.APP_NAME, version=Config.APP_VERSION,
-                   channel=Config.REQUIRED_CHANNEL, channel_url="https://t.me/" + Config.REQUIRED_CHANNEL.lstrip("@"),
+                   channel=Config.REQUIRED_CHANNEL if Config.CHANNEL_GATE else None,
+                   channel_url=("https://t.me/" + Config.REQUIRED_CHANNEL.lstrip("@")) if Config.CHANNEL_GATE else None,
+                   adult_space="La Sainte Culture",
                    default_language=language if language in ("fr", "en") else "fr", languages=["fr", "en"],
-                   maintenance=maintenance, password_login=Config.ADMIN_PASSWORD_LOGIN)
+                   maintenance=maintenance, password_login=Config.ADMIN_PASSWORD_LOGIN,
+                   bot_username=Config.TELEGRAM_BOT_USERNAME or None, mini_app_url=Config.TELEGRAM_MINI_APP_URL or None)
 
 
 @app.get("/health")
@@ -127,24 +133,41 @@ def secure_headers(resp):
     return resp
 
 
-# ------------------------------------------------------------------ tables / CLI
-if Config.AUTO_CREATE_TABLES:
+# ------------------------------------------------------------------ tables / schema / bot
+# Everything below is idempotent: it creates what is missing and never touches existing data, so there is no
+# manual "init-db" step any more (a fresh database used to answer 500 on every request until someone ran it).
+def _prepare_database():
     with app.app_context():
         try:
             db.create_all()
         except Exception:  # another gunicorn worker may be creating them at the same time
             db.session.rollback()
+            app.logger.warning("create_all skipped (concurrent start?)")
+        try:
+            ensure_schema(db)  # adds the "La Sainte Culture" columns to databases created by an older version
+        except Exception:
+            db.session.rollback()
+            app.logger.exception("Schema upgrade failed")
 
 
-# The library tables (favorites, reading progress, preferences) are new: create them if missing.
-# create_all-style, idempotent, never touches existing tables or data.
-with app.app_context():
-    try:
-        for model in (Favorite, ReadingProgress, UserPref):
-            model.__table__.create(bind=db.engine, checkfirst=True)
-    except Exception:  # race with another worker, or base tables not created yet (AUTO_CREATE_TABLES)
-        db.session.rollback()
-        app.logger.warning("Library tables not created yet (they will be on the next start).")
+def _bot_boot():
+    """Register the Telegram webhook + commands + menu button, with retries (Render may still be starting)."""
+    from services.telegram_service import ensure_webhook, setup_bot
+    for attempt in range(1, 5):
+        try:
+            url = ensure_webhook()
+            setup_bot()
+            app.logger.info("Telegram bot ready - webhook: %s", url)
+            return
+        except Exception as exc:
+            app.logger.warning("Telegram setup attempt %s/4 failed: %s", attempt, exc)
+            time.sleep(4 * attempt)
+    app.logger.error("Telegram setup failed. Open /api/telegram/health to see what is wrong.")
+
+
+_prepare_database()
+if Config.BOT_AUTO_SETUP and Config.TELEGRAM_BOT_TOKEN:
+    threading.Thread(target=_bot_boot, name="telegram-boot", daemon=True).start()
 
 
 @app.cli.command("init-db")

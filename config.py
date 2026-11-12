@@ -1,4 +1,4 @@
-"""Nexa Manga - configuration (everything comes from environment variables)."""
+"""Manga Gallery FR - configuration (everything comes from environment variables)."""
 import os
 from pathlib import Path
 
@@ -7,8 +7,9 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
-APP_VERSION = "V2.05"          # single source of truth for the displayed version
-REQUIRED_CHANNEL = "@Nexa_CG"  # users must join this channel before using the mini app
+APP_NAME = "Manga Gallery FR"
+APP_VERSION = "Finale"         # single source of truth for the displayed version
+REQUIRED_CHANNEL = "@Nexa_CG"  # users must join this channel before using the mini app (set REQUIRED_CHANNEL=off to disable)
 FRONTEND_URL = "https://mangagalleryzone.netlify.app"             # the mini app (Netlify)
 BACKEND_URL = "https://mangagallery-backend-8d98.onrender.com"     # this API (Render)
 
@@ -39,13 +40,13 @@ def _database_url():
 
 class Config:
     # ---- application
-    APP_NAME = os.getenv("APP_NAME", "Nexa Manga")
+    APP_NAME = APP_NAME
     APP_VERSION = APP_VERSION
     APP_ENV = os.getenv("APP_ENV", "development")
     DEBUG = APP_ENV == "development"
     HOST = os.getenv("HOST", "0.0.0.0")
     PORT = _int("PORT", 5000)
-    AUTO_CREATE_TABLES = _bool("AUTO_CREATE_TABLES")
+    AUTO_CREATE_TABLES = True   # tables are created / completed automatically at startup (never touches existing data)
     API_PREFIX = "/api"
 
     # ---- secrets
@@ -76,7 +77,11 @@ class Config:
     TELEGRAM_MINI_APP_URL = os.getenv("TELEGRAM_MINI_APP_URL", FRONTEND_URL).strip()
     TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
     PUBLIC_BACKEND_URL = os.getenv("PUBLIC_BACKEND_URL", BACKEND_URL).strip()
-    REQUIRED_CHANNEL = os.getenv("REQUIRED_CHANNEL", REQUIRED_CHANNEL).strip() or REQUIRED_CHANNEL
+    REQUIRED_CHANNEL = os.getenv("REQUIRED_CHANNEL", "").strip() or REQUIRED_CHANNEL
+    # REQUIRED_CHANNEL=off|none|false|0 switches the channel gate off (useful while the bot is not yet admin of the channel)
+    CHANNEL_GATE = REQUIRED_CHANNEL.lower() not in {"off", "none", "false", "0", "no"}
+    # Register the webhook + bot commands by itself when the server starts (production by default).
+    BOT_AUTO_SETUP = _bool("BOT_AUTO_SETUP", "true" if os.getenv("APP_ENV", "development") == "production" else "false")
     TELEGRAM_INITDATA_MAX_AGE = _int("TELEGRAM_INITDATA_MAX_AGE", 86400)
 
     # ---- administrator (the owner). Identified by Telegram id, never by "id == 1".
