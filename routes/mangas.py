@@ -7,6 +7,7 @@ from models.manga import ALL_TYPES, SECTION_ADULT, SECTION_NORMAL, SECTIONS, TYP
 from utils.authz import current_user, require_admin, require_user, viewer_adult_ok, viewer_is_admin
 from utils.http import fail, like_pattern, paginate, pick, search_term
 from utils.security import clean_multiline, clean_text, is_safe_url
+from routes.uploads import release_urls
 from utils.sections import adult_denied, requested_section, requested_type
 from utils.slug import slugify, unique_slug
 
@@ -192,6 +193,8 @@ def update_manga(manga_id):
     err = _check_combo(fields.get("section", manga.section), fields.get("content_type", manga.content_type))
     if err:
         return fail(err)
+    release_urls([old for k, old in (("cover_url", manga.cover_url), ("banner_url", manga.banner_url))
+                  if k in fields and fields[k] != old])
     for k, v in fields.items():
         setattr(manga, k, v)
     if data.get("slug"):
@@ -206,6 +209,9 @@ def delete_manga(manga_id):
     manga = Manga.query.get(manga_id)
     if not manga:
         return fail("Manga introuvable", 404)
+    release_urls([manga.cover_url, manga.banner_url])
+    for chapter in manga.chapters:
+        release_urls(chapter.pages)
     db.session.delete(manga)
     db.session.commit()
     return jsonify(success=True, message="Manga supprimé")

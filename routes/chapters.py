@@ -8,6 +8,7 @@ from models.manga import SECTION_ADULT, Manga
 from utils.authz import require_admin, require_user, viewer_adult_ok, viewer_is_admin
 from utils.http import fail, like_pattern, paginate, search_term
 from utils.security import clean_text, is_safe_url
+from routes.uploads import release_urls
 from utils.sections import adult_denied, requested_section
 from utils.slug import slugify
 
@@ -210,6 +211,7 @@ def update_chapter(chapter_id):
         pages = _clean_pages(data["pages"])
         if pages is None:
             return fail("pages : liste d'URLs http/https (500 max)")
+        release_urls([u for u in (c.pages or []) if u not in pages])
         c.pages = pages
     db.session.commit()
     return jsonify(success=True, message="Chapitre mis à jour", chapter=c.to_dict())
@@ -221,6 +223,7 @@ def delete_chapter(chapter_id):
     c = Chapter.query.get(chapter_id)
     if not c:
         return fail("Chapitre introuvable", 404)
+    release_urls(c.pages)
     db.session.delete(c)
     db.session.commit()
     return jsonify(success=True, message="Chapitre supprimé")
@@ -235,6 +238,7 @@ def set_pages(chapter_id):
     pages = _clean_pages((request.get_json(silent=True) or {}).get("pages"))
     if pages is None:
         return fail("pages : liste d'URLs http/https (500 max)")
+    release_urls([u for u in (c.pages or []) if u not in pages])
     c.pages = pages
     db.session.commit()
     return jsonify(success=True, message="Pages mises à jour", chapter=c.to_dict())
