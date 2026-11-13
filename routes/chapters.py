@@ -8,7 +8,8 @@ from models.manga import SECTION_ADULT, Manga
 from utils.authz import require_admin, require_user, viewer_adult_ok, viewer_is_admin
 from utils.http import fail, like_pattern, paginate, search_term
 from utils.security import clean_text, is_safe_url
-from routes.uploads import release_urls
+from routes.uploads import _public_base, release_urls
+from services.mangadex import signed_page_urls
 from utils.sections import adult_denied, requested_section
 from utils.slug import slugify
 
@@ -22,6 +23,14 @@ def _visible(q):
     if viewer_is_admin():
         return q
     return q.filter(Chapter.visibility == "public", Chapter.status == "published")
+
+
+def _payload(c):
+    """Chapter as sent to the reader: imported chapters get fresh signed proxy URLs instead of their placeholders."""
+    d = c.to_dict()
+    if c.source == "mangadex":
+        d["pages"] = signed_page_urls(c, _public_base())
+    return d
 
 
 def _hide_adult(q):
@@ -125,7 +134,7 @@ def get_chapter(chapter_id):
         return fail("Chapitre introuvable", 404)
     if _adult_manga(c.manga_id):
         return adult_denied()
-    return jsonify(c.to_dict())
+    return jsonify(_payload(c))
 
 
 @chapters_bp.get("/<int:chapter_id>/read")
@@ -140,7 +149,7 @@ def read_chapter(chapter_id):
     prev_c = siblings.filter(Chapter.number < c.number).order_by(Chapter.number.desc()).first()
     next_c = siblings.filter(Chapter.number > c.number).order_by(Chapter.number.asc()).first()
     manga = Manga.query.get(c.manga_id)
-    return jsonify(success=True, chapter=c.to_dict(),
+    return jsonify(success=True, chapter=_payload(c),
                    manga={"id": manga.id, "title": manga.title} if manga else None,
                    prev_id=prev_c.id if prev_c else None, next_id=next_c.id if next_c else None)
 
@@ -211,8 +220,11 @@ def update_chapter(chapter_id):
         pages = _clean_pages(data["pages"])
         if pages is None:
             return fail("pages : liste d'URLs http/https (500 max)")
-        release_urls([u for u in (c.pages or []) if u not in pages])
-        c.pages = pages
+        if c.source:
+            pages = None                                   # imported chapter: pages are managed by the import
+        else:
+            release_urls([u for u in (c.pages or []) if u not in pages])
+            c.pages = pages
     db.session.commit()
     return jsonify(success=True, message="Chapitre mis à jour", chapter=c.to_dict())
 
@@ -238,6 +250,8 @@ def set_pages(chapter_id):
     pages = _clean_pages((request.get_json(silent=True) or {}).get("pages"))
     if pages is None:
         return fail("pages : liste d'URLs http/https (500 max)")
+    if c.source:
+        return fail("Les pages d'un chapitre importé de MangaDex ne se modifient pas.")
     release_urls([u for u in (c.pages or []) if u not in pages])
     c.pages = pages
     db.session.commit()
