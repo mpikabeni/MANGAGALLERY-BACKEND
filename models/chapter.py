@@ -56,6 +56,11 @@ class Chapter(db.Model):
         default="public"
     )
 
+    # Imported chapters keep placeholders ("mdx:<n>") in `pages`; the real image URLs are signed per request (see routes/mangadex.py)
+    source = db.Column(db.String(20), nullable=True)
+    external_id = db.Column(db.String(64), nullable=True)
+    group_name = db.Column(db.String(255), nullable=True)
+
     published_at = db.Column(
         db.DateTime,
         nullable=True
@@ -109,6 +114,12 @@ class Chapter(db.Model):
             "status": self.status,
 
             "visibility": self.visibility,
+
+            "source": self.source,
+
+            "group_name": self.group_name,
+
+            "source_url": ("https://mangadex.org/chapter/" + self.external_id) if self.source == "mangadex" and self.external_id else None,
 
             "published_at":
                 self.published_at.isoformat()

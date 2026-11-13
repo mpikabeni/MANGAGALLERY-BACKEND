@@ -93,6 +93,11 @@ class Manga(db.Model):
         index=True
     )
 
+    # Imported from an external catalogue (MangaDex). Credits are displayed wherever the title is shown.
+    source = db.Column(db.String(20), nullable=True)
+    external_id = db.Column(db.String(64), nullable=True, index=True)
+    source_lang = db.Column(db.String(8), nullable=True)
+
     # ==================================
     # AUTEUR
     # ==================================
@@ -205,6 +210,10 @@ class Manga(db.Model):
             "content_type": self.content_type or TYPE_MANGA,
 
             "is_adult": (self.section == SECTION_ADULT),
+
+            "source": self.source,
+
+            "source_url": ("https://mangadex.org/title/" + self.external_id) if self.source == "mangadex" and self.external_id else None,
 
             "author_id": self.author_id,
 
