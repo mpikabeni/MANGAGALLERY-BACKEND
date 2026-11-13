@@ -6,6 +6,7 @@ A genuine RAR/CBR or 7z/CB7 archive cannot be opened on the server: the admin ge
 import io
 import os
 import re
+import shutil
 import tarfile
 import tempfile
 import zipfile
@@ -23,6 +24,24 @@ PDF_TARGET_WIDTH = 1400
 
 class ImportFailure(Exception):
     """Message meant for the administrator (French)."""
+
+
+class DiskFile:
+    """An uploaded file saved to disk, with the small API of werkzeug's FileStorage that the readers use."""
+
+    def __init__(self, path, filename):
+        self.path, self.filename = path, filename
+        self.stream = open(path, "rb")
+
+    def save(self, dst):
+        with open(self.path, "rb") as src:
+            shutil.copyfileobj(src, dst)
+
+    def close(self):
+        try:
+            self.stream.close()
+        except Exception:
+            pass
 
 
 def natural_key(name):
@@ -101,12 +120,14 @@ def _from_pdf(file_storage):
             import fitz
         except ImportError:
             raise ImportFailure("Le serveur ne sait pas encore lire les PDF (PyMuPDF manquant dans requirements.txt).")
-    tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+    own = getattr(file_storage, "path", None)
+    tmp = None if own else tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
     try:
-        file_storage.save(tmp)
-        tmp.close()
+        if tmp:
+            file_storage.save(tmp)
+            tmp.close()
         try:
-            doc = fitz.open(tmp.name)
+            doc = fitz.open(own or tmp.name)
         except Exception:
             raise ImportFailure("PDF illisible ou corrompu.")
         if doc.needs_pass:
@@ -120,10 +141,11 @@ def _from_pdf(file_storage):
             yield f"page-{i + 1:03d}.jpg", pix.tobytes("jpeg", jpg_quality=88)
         doc.close()
     finally:
-        try:
-            os.unlink(tmp.name)
-        except OSError:
-            pass
+        if tmp:
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
 
 
 def kind_of(file_storage):
@@ -148,6 +170,17 @@ def kind_of(file_storage):
     if ext_of(name) in IMAGE_EXT:
         return "image"
     return None
+
+
+def ensure_supported(file_storage):
+    """Raise ImportFailure right away (before any heavy work) for a format the server cannot open."""
+    kind, name = kind_of(file_storage), file_storage.filename or "fichier"
+    if kind in ("rar", "7z"):
+        raise ImportFailure(f"« {name} » est une archive {kind.upper()} que le serveur ne peut pas ouvrir. "
+                            "Convertis-la en CBZ (ZIP) ou en PDF, puis renvoie-la.")
+    if kind is None:
+        raise ImportFailure(f"Format non pris en charge : « {name} ». Formats : images, PDF, CBZ, ZIP, CBT.")
+    return kind
 
 
 def iter_pages(file_storage):
