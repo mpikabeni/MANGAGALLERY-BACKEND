@@ -3,7 +3,7 @@ services:
     name: manga-gallery-fr-backend
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 300 main:app
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 8 --timeout 300 main:app
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION

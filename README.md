@@ -61,3 +61,13 @@ python bot.py           # bot en long polling (sans webhook)
   **stockées dans PostgreSQL** (table `media_blobs`) : elles survivent aux redéploiements de Render. 150 Mo maximum par envoi,
   400 pages maximum par envoi. Les images d'un chapitre ou d'un titre supprimé sont libérées automatiquement.
 - Les liens d'images (https) restent possibles en complément.
+
+## Import MangaDex (fiches + chapitres)
+Admin → **Importer** : recherche un titre sur MangaDex (API publique, sans clé), choisis la section (Galerie ou La Sainte Culture) et le type,
+puis « Importer fiche + chapitres » crée le titre (couverture copiée dans la base) et ses chapitres lisibles dans la langue choisie.
+- Les **pages ne sont pas copiées** : le serveur les relaie depuis MangaDex à chaque lecture (`/api/mangadex/page/…`), avec des liens signés valables 6 h,
+  délivrés uniquement par les routes déjà protégées (visibilité + 18+). MangaDex interdit l'affichage direct depuis un navigateur.
+- **Conditions MangaDex** : créditer MangaDex et les groupes de traduction (fait dans la fiche et le lecteur), aucune publicité ni service payant,
+  honorer les demandes de retrait (supprimer le titre dans Mangas). Limite ~5 requêtes/s : un seul import à la fois.
+- Un titre classé adulte par MangaDex (erotica / pornographic) n'est importable que dans **La Sainte Culture**, et uniquement en webtoon ou bande dessinée.
+- « Mettre à jour » (icône ↻ dans Mangas) récupère les nouveaux chapitres d'un titre déjà importé.

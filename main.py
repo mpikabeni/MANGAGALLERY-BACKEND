@@ -1,4 +1,5 @@
 """Manga Gallery FR - Flask application (canonical entry point, WSGI object: `app`)."""
+import importlib
 import logging
 import threading
 import time
@@ -51,30 +52,21 @@ def _expired(header, payload):
 
 
 # ------------------------------------------------------------------ blueprints
-from routes.auth import auth_bp  # noqa: E402
-from routes.categories import categories_bp  # noqa: E402
-from routes.chapters import chapters_bp  # noqa: E402
-from routes.comments import comments_bp  # noqa: E402
-from routes.library import library_bp  # noqa: E402
-from routes.mangas import mangas_bp  # noqa: E402
-from routes.media import media_bp  # noqa: E402
-from routes.uploads import uploads_bp  # noqa: E402
-from routes.notifications import notifications_bp  # noqa: E402
-from routes.reports import reports_bp  # noqa: E402
-from routes.roles import roles_bp  # noqa: E402
-from routes.settings import settings_bp  # noqa: E402
-from routes.statistics import statistics_bp  # noqa: E402
-from routes.system import system_bp  # noqa: E402
-from routes.telegram import telegram_bp  # noqa: E402
-from routes.users import users_bp  # noqa: E402
-
-for blueprint, prefix in [
-    (auth_bp, "auth"), (mangas_bp, "mangas"), (chapters_bp, "chapters"), (categories_bp, "categories"),
-    (users_bp, "users"), (comments_bp, "comments"), (notifications_bp, "notifications"),
-    (statistics_bp, "statistics"), (reports_bp, "reports"), (media_bp, "media"), (uploads_bp, "uploads"), (roles_bp, "roles"),
-    (settings_bp, "settings"), (system_bp, "system"), (telegram_bp, "telegram"), (library_bp, "library"),
+# Each module is loaded on its own: if ONE file is missing or broken (for instance a half-uploaded deployment), only its
+# routes are disabled, the rest of the API keeps running, and /health tells which module failed and why.
+FAILED_MODULES = {}
+for module, prefix in [
+    ("auth", "auth"), ("mangas", "mangas"), ("chapters", "chapters"), ("categories", "categories"), ("users", "users"),
+    ("comments", "comments"), ("notifications", "notifications"), ("statistics", "statistics"), ("reports", "reports"),
+    ("media", "media"), ("uploads", "uploads"), ("mangadex", "mangadex"), ("roles", "roles"), ("settings", "settings"),
+    ("system", "system"), ("telegram", "telegram"), ("library", "library"),
 ]:
-    app.register_blueprint(blueprint, url_prefix=f"/api/{prefix}")
+    try:
+        blueprint = getattr(importlib.import_module(f"routes.{module}"), f"{module}_bp")
+        app.register_blueprint(blueprint, url_prefix=f"/api/{prefix}")
+    except Exception as exc:
+        FAILED_MODULES[module] = f"{type(exc).__name__}: {str(exc)[:160]}"
+        app.logger.error("Module routes.%s NOT loaded -> %s", module, FAILED_MODULES[module], exc_info=True)
 
 
 # ------------------------------------------------------------------ public endpoints
@@ -105,8 +97,12 @@ def health():
     except Exception:
         db.session.rollback()
         ok = False
-    return jsonify(status="online" if ok else "degraded", application=Config.APP_NAME,
-                   version=Config.APP_VERSION, database="online" if ok else "offline"), 200 if ok else 503
+    body = dict(status="online" if ok else "degraded", application=Config.APP_NAME,
+                version=Config.APP_VERSION, database="online" if ok else "offline")
+    if FAILED_MODULES:
+        body["status"] = "degraded"
+        body["failed_modules"] = FAILED_MODULES      # e.g. {"mangadex": "ModuleNotFoundError: No module named 'services.mangadex'"}
+    return jsonify(body), 200 if ok else 503
 
 
 # ------------------------------------------------------------------ errors
