@@ -229,3 +229,19 @@ class MediaBlob(db.Model):
     height = db.Column(db.Integer, nullable=True)
     data = db.deferred(db.Column(db.LargeBinary, nullable=False))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ImportJob(db.Model):
+    """Background import of a chapter (PDF / CBZ / images). The upload request answers immediately with the job id and
+    the page conversion runs in a thread: a long PDF can no longer hit the hosting platform's request timeout."""
+
+    __tablename__ = "import_jobs"
+
+    id = db.Column(db.String(40), primary_key=True)
+    status = db.Column(db.String(20), nullable=False, default="processing")   # processing | done | error
+    done = db.Column(db.Integer, nullable=False, default=0)
+    pages = db.Column(db.JSON, nullable=True)
+    skipped = db.Column(db.JSON, nullable=True)
+    error = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
