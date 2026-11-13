@@ -12,7 +12,6 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import Config, validate_config
 from database import db, init_database
-from utils.schema import ensure_schema
 
 # Import every model before create_all / mapper configuration.
 from models import (Admin, Category, Chapter, Comment, Favorite, Manga, Media, Notification, ReadingProgress,  # noqa: F401
@@ -99,6 +98,13 @@ def health():
         ok = False
     body = dict(status="online" if ok else "degraded", application=Config.APP_NAME,
                 version=Config.APP_VERSION, database="online" if ok else "offline")
+    try:
+        missing = _missing_columns() if ok else {}
+    except Exception:
+        missing = {}
+    if missing:
+        body["status"] = "degraded"
+        body["missing_columns"] = missing            # e.g. {"chapters": ["source"]}: restart the service to heal it
     if FAILED_MODULES:
         body["status"] = "degraded"
         body["failed_modules"] = FAILED_MODULES      # e.g. {"mangadex": "ModuleNotFoundError: No module named 'services.mangadex'"}
@@ -133,6 +139,64 @@ def secure_headers(resp):
 # ------------------------------------------------------------------ tables / schema / bot
 # Everything below is idempotent: it creates what is missing and never touches existing data, so there is no
 # manual "init-db" step any more (a fresh database used to answer 500 on every request until someone ran it).
+def _column_default_sql(col):
+    """DEFAULT clause for a column added to an existing table (so NOT NULL columns can be added safely)."""
+    sd = col.server_default
+    if sd is not None and isinstance(getattr(sd, "arg", None), str):
+        return " DEFAULT '" + sd.arg.replace("'", "''") + "'"
+    d = col.default
+    if d is not None and getattr(d, "is_scalar", False):
+        v = d.arg
+        if isinstance(v, bool):
+            return " DEFAULT " + ("TRUE" if v else "FALSE")
+        if isinstance(v, (int, float)):
+            return f" DEFAULT {v}"
+        if isinstance(v, str):
+            return " DEFAULT '" + v.replace("'", "''") + "'"
+    return ""
+
+
+def _missing_columns():
+    """{table: [columns]} that the models define but the database does not have."""
+    from sqlalchemy import inspect
+    insp, out = inspect(db.engine), {}
+    for table in db.metadata.sorted_tables:
+        if not insp.has_table(table.name):
+            continue
+        have = {c["name"] for c in insp.get_columns(table.name)}
+        lacking = [c.name for c in table.columns if c.name not in have]
+        if lacking:
+            out[table.name] = lacking
+    return out
+
+
+def _heal_schema():
+    """db.create_all() creates missing TABLES but never adds a column to an existing table. Every release that adds a
+    model column would therefore break every query on that table (500 on all pages). This adds what is missing, for
+    any table / any column, on PostgreSQL and SQLite, without touching data. Idempotent, safe with several workers."""
+    from sqlalchemy import text
+    for table_name, lacking in _missing_columns().items():
+        table = db.metadata.tables[table_name]
+        for name in lacking:
+            col = table.columns[name]
+            default = _column_default_sql(col)
+            not_null = " NOT NULL" if (not col.nullable and default) else ""
+            ddl = col.type.compile(dialect=db.engine.dialect)
+            try:
+                with db.engine.begin() as conn:
+                    conn.execute(text(f'ALTER TABLE "{table_name}" ADD COLUMN "{name}" {ddl}{default}{not_null}'))
+                app.logger.warning("Schema healed: added column %s.%s", table_name, name)
+            except Exception as exc:
+                app.logger.warning("Schema: could not add %s.%s (%s)", table_name, name, str(exc).splitlines()[0][:140])
+    for index, table_name, column in [("ix_mangas_section", "mangas", "section"), ("ix_mangas_content_type", "mangas", "content_type"),
+                                      ("ix_mangas_external_id", "mangas", "external_id")]:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text(f'CREATE INDEX IF NOT EXISTS {index} ON {table_name} ({column})'))
+        except Exception:
+            pass
+
+
 def _prepare_database():
     with app.app_context():
         try:
@@ -141,7 +205,7 @@ def _prepare_database():
             db.session.rollback()
             app.logger.warning("create_all skipped (concurrent start?)")
         try:
-            ensure_schema(db)  # adds the "La Sainte Culture" columns to databases created by an older version
+            _heal_schema()
         except Exception:
             db.session.rollback()
             app.logger.exception("Schema upgrade failed")
