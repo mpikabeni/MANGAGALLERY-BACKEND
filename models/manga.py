@@ -94,6 +94,9 @@ class Manga(db.Model):
     )
 
     # Imported from an external catalogue (MangaDex). Credits are displayed wherever the title is shown.
+    # Set when the title was announced to the users (bot + notification), so it is announced only once.
+    announced_at = db.Column(db.DateTime, nullable=True)
+
     source = db.Column(db.String(20), nullable=True)
     external_id = db.Column(db.String(64), nullable=True, index=True)
     source_lang = db.Column(db.String(8), nullable=True)
