@@ -47,9 +47,16 @@ def _serialize_batch(rows):
 
 def _query(section=None):
     q = Manga.query
+    coming = request.args.get("coming") == "1"
     if not viewer_is_admin():
         q = q.filter(Manga.visibility == "public")
-        q = q.filter(db.exists().where(db.and_(Chapter.manga_id == Manga.id, Chapter.status == "published", Chapter.visibility == "public")))
+        if coming:                                       # "Bientôt": titles announced but not readable yet
+            q = q.filter(Manga.coming_soon.is_(True))
+        else:                                            # readers never see a title without readable chapters
+            q = q.filter(Manga.coming_soon.is_(False))
+            q = q.filter(db.exists().where(db.and_(Chapter.manga_id == Manga.id, Chapter.status == "published", Chapter.visibility == "public")))
+    elif request.args.get("coming") in ("0", "1"):
+        q = q.filter(Manga.coming_soon.is_(coming))
     if section:
         q = q.filter(Manga.section == section)
     ctype = requested_type()
@@ -126,6 +133,8 @@ def _validated(data, partial=False):
         if data["visibility"] not in VISIBILITIES:
             return None, "Visibilité invalide"
         out["visibility"] = data["visibility"]
+    if "coming_soon" in data:
+        out["coming_soon"] = bool(data["coming_soon"])
     if "section" in data:
         if data["section"] not in SECTIONS:
             return None, "Section invalide (normal ou sainte_culture)"
@@ -163,7 +172,7 @@ def _check_combo(section, ctype):
 def create_manga():
     data = request.get_json(silent=True) or {}
     fields, err = _validated(pick(data, ("title", "slug", "description", "cover_url", "banner_url", "status",
-                                         "visibility", "category_id", "section", "content_type")))
+                                         "visibility", "category_id", "section", "content_type", "coming_soon")))
     if err:
         return fail(err)
     fields.setdefault("status", "ongoing")
@@ -173,7 +182,7 @@ def create_manga():
     err = _check_combo(fields["section"], fields["content_type"])
     if err:
         return fail(err)
-    if data.get("notify") is False:
+    if data.get("notify") is False and not fields.get("coming_soon"):
         fields["announced_at"] = datetime.utcnow()      # published without announcing it to the users
     fields.pop("slug", None)
     fields["slug"] = unique_slug(Manga, slugify(data.get("slug") or fields["title"], "manga"))
@@ -192,7 +201,7 @@ def update_manga(manga_id):
         return fail("Manga introuvable", 404)
     data = request.get_json(silent=True) or {}
     fields, err = _validated(pick(data, ("title", "description", "cover_url", "banner_url", "status",
-                                         "visibility", "category_id", "section", "content_type")), partial=True)
+                                         "visibility", "category_id", "section", "content_type", "coming_soon")), partial=True)
     if err:
         return fail(err)
     err = _check_combo(fields.get("section", manga.section), fields.get("content_type", manga.content_type))

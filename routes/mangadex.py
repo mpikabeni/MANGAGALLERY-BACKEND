@@ -3,6 +3,7 @@
 Admin only: search / import / sync.   Public (signed URL): the page image relay used by the reader.
 Credits to MangaDex and to the scanlation group are shown in the app; delete a title to honour a removal request."""
 import threading
+import time
 from datetime import datetime
 
 from flask import Blueprint, Response, current_app, jsonify, request
@@ -38,7 +39,8 @@ def search():
     section = request.args.get("section", SECTION_NORMAL)
     try:
         items, total = md.search((request.args.get("q") or "").strip()[:100], _lang(), section == SECTION_ADULT,
-                                 max(0, request.args.get("offset", 0, type=int)), completed_only=request.args.get("completed") == "1")
+                                 max(0, request.args.get("offset", 0, type=int)), completed_only=request.args.get("completed") == "1",
+                                 any_lang=request.args.get("coming") == "1")
     except md.MangaDexError as exc:
         return fail(str(exc), 502)
     ids = [i["id"] for i in items]
@@ -136,6 +138,8 @@ def import_title():
         return fail("Un import est déjà en cours, patiente quelques secondes.", 429)
     try:
         existing = Manga.query.filter_by(source="mangadex", external_id=mid).first() if md.UUID_RE.match(mid or "") else None
+        if existing and data.get("mode") == "coming":
+            return fail("Ce titre est déjà dans ton catalogue.")
         if existing:
             added, skipped = sync_chapters(existing)
             if notify:
@@ -144,9 +148,11 @@ def import_title():
         info = md.get_manga(mid, lang)
         if info["rating"] in md.ADULT_RATINGS and section != SECTION_ADULT:
             return fail("Ce titre est classé adulte : importe-le dans La Sainte Culture.")
-        chapters = usable_chapters(md.chapter_feed(mid, lang))
-        if not chapters:
-            return fail(f"Aucun chapitre lisible en « {lang} » (numéro supérieur à 0) : le titre n'a pas été importé.")
+        coming = data.get("mode") == "coming"
+        chapters = [] if coming else usable_chapters(md.chapter_feed(mid, lang))
+        if not coming and not chapters:
+            return fail(f"Aucun chapitre lisible en « {lang} » (numéro supérieur à 0) : le titre n'a pas été importé. "
+                        "Tu peux l'ajouter à « Bientôt ».")
         text, synopsis_kind = _synopsis(info, lang)
         cover = None
         if info["cover_url"]:
@@ -164,9 +170,12 @@ def import_title():
         manga = Manga(title=clean_text(info["title"], 255) or "Sans titre", slug=unique_slug(Manga, slugify(info["title"], "manga")),
                       description=description or None, cover_url=cover, status=info["status"], visibility="public",
                       section=section, content_type=ctype, source="mangadex", external_id=mid, source_lang=lang,
-                      announced_at=None if notify else datetime.utcnow())
+                      coming_soon=coming, announced_at=None if (notify or coming) else datetime.utcnow())
         db.session.add(manga)
         db.session.commit()
+        if coming:                                    # "Bientôt": fiche only, no chapters, released automatically when complete in VF
+            return jsonify(success=True, manga=manga.to_dict(), added=0, skipped=0, already=False, synopsis=synopsis_kind,
+                           coming=True, count=0, first=None, last=None, notified=False), 201
         added = _insert_chapters(manga, chapters)
         if notify:
             maybe_announce(manga)
@@ -216,3 +225,35 @@ def page(chapter_id, index):
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
     return resp
+
+
+def release_ready():
+    """For every "Bientôt" title imported from MangaDex: when its chapters are now COMPLETE in the chosen language (series finished,
+    no missing number), import them all, move the title out of "Bientôt" and announce it to the users. Returns the released titles."""
+    released = []
+    for manga in Manga.query.filter_by(source="mangadex", coming_soon=True).all():
+        lang = manga.source_lang or "fr"
+        try:
+            info = md.get_manga(manga.external_id, lang)
+            summary = md.chapter_summary(manga.external_id, lang, info.get("declared_last"), info["status"])
+            if summary["count"] and summary["complete"]:
+                sync_chapters(manga)
+                maybe_announce(manga)                 # clears coming_soon and sends the "Nouveau" notification + bot message
+                released.append(manga.title)
+        except md.MangaDexError:
+            db.session.rollback()
+            continue
+        time.sleep(0.5)                                # MangaDex: stay far below 5 requests / second
+    return released
+
+
+@mangadex_bp.post("/check-coming")
+@require_admin
+def check_coming():
+    if not _import_lock.acquire(blocking=False):
+        return fail("Un import est déjà en cours, patiente quelques secondes.", 429)
+    try:
+        released = release_ready()
+        return jsonify(success=True, released=released, count=len(released))
+    finally:
+        _import_lock.release()
