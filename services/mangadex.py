@@ -91,8 +91,13 @@ def parse_manga(item, lang):
     genres = [_pick(t.get("name"), "en") for t in tags if t.get("group") == "genre"]
     status = {"hiatus": "paused", "cancelled": "completed"}.get(a.get("status"), a.get("status") or "ongoing")
     guess = "webtoon" if ("Long Strip" in names or a.get("originalLanguage") in ("ko", "zh", "zh-hk")) else "manga"
+    desc_map = a.get("description") or {}
     return {
-        "id": item["id"], "title": _title(a, lang) or "Sans titre", "description": _pick(a.get("description"), lang),
+        "id": item["id"], "title": _title(a, lang) or "Sans titre", "description": _pick(desc_map, lang),
+        "description_lang": desc_map.get(lang) or "",          # exact synopsis in the requested language ("" = none)
+        "description_en": desc_map.get("en") or "",
+        "has_lang_description": bool(desc_map.get(lang)),
+        "declared_last": a.get("lastChapter") or None,         # final chapter number announced by MangaDex (often empty)
         "cover_url": f"{UPLOADS}/covers/{item['id']}/{file_name}.512.jpg" if file_name else None,
         "status": status if status in ("ongoing", "completed", "paused") else "ongoing",
         "year": a.get("year"), "rating": a.get("contentRating"), "original_language": a.get("originalLanguage"),
@@ -100,9 +105,11 @@ def parse_manga(item, lang):
     }
 
 
-def search(query, lang="fr", adult=False, offset=0, limit=20):
+def search(query, lang="fr", adult=False, offset=0, limit=20, completed_only=False):
     params = [("limit", limit), ("offset", offset), ("includes[]", "cover_art"), ("hasAvailableChapters", "true"),
               ("availableTranslatedLanguage[]", lang)]
+    if completed_only:
+        params.append(("status[]", "completed"))
     params += [("contentRating[]", r) for r in (ADULT_RATINGS if adult else SAFE_RATINGS)]
     if query:
         params += [("title", query), ("order[relevance]", "desc")]
@@ -120,6 +127,52 @@ def get_manga(manga_id, lang="fr"):
 
 
 # ------------------------------------------------------------------ chapters
+_SUMMARY = {}      # (manga uuid, lang) -> (expires_at, summary)
+
+
+def _as_list(value):
+    """MangaDex answers {} or [] for empty containers."""
+    if isinstance(value, dict):
+        return list(value.values())
+    return value if isinstance(value, list) else []
+
+
+def chapter_summary(manga_id, lang, declared_last=None, status=None):
+    """How many chapters exist in `lang`, from which number to which, and which whole numbers are missing.
+    One light request (/manga/{id}/aggregate). Chapter 0 / unnumbered chapters are ignored."""
+    if not UUID_RE.match(manga_id or ""):
+        raise MangaDexError("Identifiant MangaDex invalide.")
+    key, now = (manga_id, lang), time.time()
+    hit = _SUMMARY.get(key)
+    if hit and hit[0] > now:
+        base = hit[1]
+    else:
+        data = _get(f"/manga/{manga_id}/aggregate", [("translatedLanguage[]", lang)])
+        numbers = set()
+        for volume in _as_list(data.get("volumes")):
+            for chapter in _as_list(volume.get("chapters") if isinstance(volume, dict) else None):
+                try:
+                    n = float(chapter.get("chapter"))
+                except (TypeError, ValueError):
+                    continue
+                if n > 0:
+                    numbers.add(n)
+        base = {"count": len(numbers), "first": min(numbers) if numbers else None, "last": max(numbers) if numbers else None,
+                "missing": [i for i in range(int(min(numbers)), int(max(numbers)) + 1) if float(i) not in numbers] if numbers else []}
+        if len(_SUMMARY) > 500:
+            _SUMMARY.clear()
+        _SUMMARY[key] = (now + 600, base)
+    out = dict(base, missing=base["missing"][:15], missing_count=len(base["missing"]))
+    try:
+        declared = float(declared_last) if declared_last else None
+    except ValueError:
+        declared = None
+    out["declared_last"] = declared
+    out["complete"] = bool(out["count"] and status == "completed" and not base["missing"]
+                           and (declared is None or (out["last"] or 0) >= declared))
+    return out
+
+
 def chapter_feed(manga_id, lang):
     """Readable chapters in `lang`, oldest first. Chapters that only link to an external site (no pages) are skipped."""
     out, offset = [], 0
