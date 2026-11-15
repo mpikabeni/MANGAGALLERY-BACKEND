@@ -239,10 +239,33 @@ def _bot_boot():
     app.logger.error("Telegram setup failed. Open /api/telegram/health to see what is wrong.")
 
 
+def _coming_soon_loop():
+    """Every COMING_SOON_CHECK_HOURS: release the "Bientôt" titles whose chapters are now complete in VF. The first run waits 10 minutes
+    so no database connection is opened before gunicorn has forked its workers."""
+    time.sleep(600)
+    while True:
+        try:
+            from routes.mangadex import _import_lock, release_ready
+            with app.app_context():
+                if _import_lock.acquire(blocking=False):
+                    try:
+                        released = release_ready()
+                        if released:
+                            app.logger.warning("Coming soon -> released: %s", ", ".join(released))
+                    finally:
+                        _import_lock.release()
+                db.session.remove()
+        except Exception:
+            app.logger.exception("Coming-soon check failed")
+        time.sleep(max(1, Config.COMING_SOON_CHECK_HOURS) * 3600)
+
+
 # The bot does not need the database: start its registration first so a database hiccup can never keep it silent.
 if Config.BOT_AUTO_SETUP and Config.TELEGRAM_BOT_TOKEN:
     threading.Thread(target=_bot_boot, name="telegram-boot", daemon=True).start()
 _prepare_database()
+if Config.COMING_SOON_CHECK_HOURS > 0:
+    threading.Thread(target=_coming_soon_loop, name="coming-soon", daemon=True).start()
 
 
 @app.cli.command("init-db")

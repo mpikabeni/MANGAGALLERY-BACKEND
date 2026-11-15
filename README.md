@@ -86,3 +86,13 @@ puis « Importer fiche + chapitres » crée le titre (couverture copiée dans la
   annonce par titre (`announced_at`). Les titres de La Sainte Culture ne sont annoncés qu'aux utilisateurs ayant confirmé avoir 18 ans.
   Case « Prévenir les utilisateurs » à décocher pour publier sans annonce. Les utilisateurs qui n'ont jamais démarré le bot reçoivent seulement
   la notification dans l'application.
+
+## « Bientôt » (titres à venir)
+- Page Importer → case **Mode « Bientôt »** : la recherche n'est plus limitée aux titres déjà traduits ; seuls les titres **pas encore complets** en français
+  s'affichent (« 0 chapitre » ou « 1 → 3 ») avec le bouton « Ajouter à Bientôt ». On crée alors la fiche (couverture, synopsis VF) **sans chapitres**.
+- Dans l'application : rangée « 🕒 Bientôt disponibles » sur l'accueil (et dans La Sainte Culture pour les titres adultes), badge « Bientôt » sur la couverture,
+  fiche sans chapitres avec explication. Le cœur sert d'alerte (« Tu seras prévenu à sa sortie »).
+- **Sortie automatique** : toutes les `COMING_SOON_CHECK_HOURS` heures (6 par défaut, 0 = jamais) et avec le bouton « Vérifier maintenant », chaque titre « Bientôt »
+  venant de MangaDex est contrôlé ; dès que la série est **terminée et complète en VF** (aucun numéro manquant), tous les chapitres sont importés, le titre quitte
+  « Bientôt » et l'annonce part (notification + bot). Render gratuit s'endort : la vérification tourne quand le serveur est éveillé, sinon utilise le bouton.
+- Création manuelle : case « Bientôt » dans « Publier un titre » ; le titre sort tout seul au premier chapitre publié.

@@ -81,6 +81,8 @@ class Config:
     # REQUIRED_CHANNEL=off|none|false|0 switches the channel gate off (useful while the bot is not yet admin of the channel)
     # Optional contact e-mail for the free MyMemory translator (raises its quota from 5 000 to 50 000 characters / day)
     MYMEMORY_EMAIL = os.getenv("MYMEMORY_EMAIL", "").strip()
+    # How often (hours) "Bientôt" titles are checked and released when complete in their language. 0 = never (button only).
+    COMING_SOON_CHECK_HOURS = _int("COMING_SOON_CHECK_HOURS", 6) or 0
     CHANNEL_GATE = _channel_env.lower() not in {"off", "none", "false", "0", "no"}
     # When the gate is off the channel is still shown as a link, so keep the real name (never "@off").
     REQUIRED_CHANNEL = _channel_env if (_channel_env and CHANNEL_GATE) else REQUIRED_CHANNEL
