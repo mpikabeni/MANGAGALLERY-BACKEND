@@ -38,6 +38,7 @@ def maybe_announce(manga):
         return False
     if chapter_stats(manga.id)[0] == 0:
         return False
+    manga.coming_soon = False                         # it is readable now: out of the "Bientôt" shelf
     manga.announced_at = datetime.utcnow()           # set BEFORE sending: no duplicate even if two requests race
     db.session.commit()
     app = current_app._get_current_object()

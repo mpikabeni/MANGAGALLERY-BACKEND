@@ -105,9 +105,10 @@ def parse_manga(item, lang):
     }
 
 
-def search(query, lang="fr", adult=False, offset=0, limit=20, completed_only=False):
-    params = [("limit", limit), ("offset", offset), ("includes[]", "cover_art"), ("hasAvailableChapters", "true"),
-              ("availableTranslatedLanguage[]", lang)]
+def search(query, lang="fr", adult=False, offset=0, limit=20, completed_only=False, any_lang=False):
+    params = [("limit", limit), ("offset", offset), ("includes[]", "cover_art")]
+    if not any_lang:          # normal mode: only titles that already have chapters in `lang`; "coming" mode: any title
+        params += [("hasAvailableChapters", "true"), ("availableTranslatedLanguage[]", lang)]
     if completed_only:
         params.append(("status[]", "completed"))
     params += [("contentRating[]", r) for r in (ADULT_RATINGS if adult else SAFE_RATINGS)]
