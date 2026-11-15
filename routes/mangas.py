@@ -1,3 +1,4 @@
+from datetime import datetime
 from flask import Blueprint, jsonify, request
 
 from database import db
@@ -25,18 +26,19 @@ def _serialize_batch(rows):
     ids = [m.id for m in rows]
     stats = {}
     if ids:
-        q = db.session.query(Chapter.manga_id, db.func.count(Chapter.id), db.func.max(Chapter.number)) \
+        q = db.session.query(Chapter.manga_id, db.func.count(Chapter.id), db.func.max(Chapter.number), db.func.min(Chapter.number)) \
             .filter(Chapter.manga_id.in_(ids))
         if not viewer_is_admin():
             q = _public_chapters(q)
-        stats = {mid: (n, last) for mid, n, last in q.group_by(Chapter.manga_id)}
+        stats = {mid: (n, last, first) for mid, n, last, first in q.group_by(Chapter.manga_id)}
     cats = {c.id: c for c in Category.query.filter(Category.id.in_({m.category_id for m in rows if m.category_id})).all()} if rows else {}
     out = []
     for m in rows:
         d = m.to_dict()
-        n, last = stats.get(m.id, (0, None))
+        n, last, first = stats.get(m.id, (0, None, None))
         d["chapters_count"] = n
         d["last_chapter"] = last
+        d["first_chapter"] = first
         c = cats.get(m.category_id)
         d["category"] = {"id": c.id, "name": c.name, "slug": c.slug, "color": c.color} if c else None
         out.append(d)
@@ -47,6 +49,7 @@ def _query(section=None):
     q = Manga.query
     if not viewer_is_admin():
         q = q.filter(Manga.visibility == "public")
+        q = q.filter(db.exists().where(db.and_(Chapter.manga_id == Manga.id, Chapter.status == "published", Chapter.visibility == "public")))
     if section:
         q = q.filter(Manga.section == section)
     ctype = requested_type()
@@ -170,6 +173,8 @@ def create_manga():
     err = _check_combo(fields["section"], fields["content_type"])
     if err:
         return fail(err)
+    if data.get("notify") is False:
+        fields["announced_at"] = datetime.utcnow()      # published without announcing it to the users
     fields.pop("slug", None)
     fields["slug"] = unique_slug(Manga, slugify(data.get("slug") or fields["title"], "manga"))
     user = current_user()

@@ -9,6 +9,7 @@ from utils.authz import require_admin, require_user, viewer_adult_ok, viewer_is_
 from utils.http import fail, like_pattern, paginate, search_term
 from utils.security import clean_text, is_safe_url
 from routes.uploads import _public_base, release_urls
+from services.announcements import maybe_announce
 from services.mangadex import signed_page_urls
 from utils.sections import adult_denied, requested_section
 from utils.slug import slugify
@@ -162,9 +163,10 @@ def create_chapter():
         manga_id, number = int(data.get("manga_id")), float(data.get("number"))
     except (TypeError, ValueError):
         return fail("manga_id et number sont obligatoires")
-    if number < 0:
-        return fail("Numéro de chapitre invalide")
-    if not Manga.query.get(manga_id):
+    if number <= 0:
+        return fail("Le numéro d'un chapitre doit être supérieur à 0 (le premier chapitre est le 1).")
+    manga = Manga.query.get(manga_id)
+    if not manga:
         return fail("Manga introuvable", 404)
     if Chapter.query.filter_by(manga_id=manga_id, number=number).first():
         return fail("Ce chapitre existe déjà", 409)
@@ -181,6 +183,7 @@ def create_chapter():
                 visibility=visibility, published_at=datetime.utcnow() if status == "published" else None)
     db.session.add(c)
     db.session.commit()
+    maybe_announce(manga)          # first readable chapter of a public title -> "new title" notification + bot message
     return jsonify(success=True, message="Chapitre créé", chapter=c.to_dict()), 201
 
 
@@ -196,8 +199,8 @@ def update_chapter(chapter_id):
             number = float(data["number"])
         except (TypeError, ValueError):
             return fail("Numéro invalide")
-        if number < 0:
-            return fail("Numéro invalide")
+        if number <= 0:
+            return fail("Le numéro d'un chapitre doit être supérieur à 0.")
         dup = Chapter.query.filter(Chapter.manga_id == c.manga_id, Chapter.number == number, Chapter.id != c.id).first()
         if dup:
             return fail("Ce chapitre existe déjà", 409)
@@ -226,6 +229,7 @@ def update_chapter(chapter_id):
             release_urls([u for u in (c.pages or []) if u not in pages])
             c.pages = pages
     db.session.commit()
+    maybe_announce(Manga.query.get(c.manga_id))      # e.g. a draft chapter just got published
     return jsonify(success=True, message="Chapitre mis à jour", chapter=c.to_dict())
 
 
