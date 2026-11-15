@@ -94,6 +94,9 @@ class Manga(db.Model):
     )
 
     # Imported from an external catalogue (MangaDex). Credits are displayed wherever the title is shown.
+    # "Bientôt": the title is shown as coming soon (no chapters yet). It becomes a normal title once its chapters exist.
+    coming_soon = db.Column(db.Boolean, nullable=False, default=False, server_default=db.text("false"), index=True)
+
     # Set when the title was announced to the users (bot + notification), so it is announced only once.
     announced_at = db.Column(db.DateTime, nullable=True)
 
@@ -213,6 +216,8 @@ class Manga(db.Model):
             "content_type": self.content_type or TYPE_MANGA,
 
             "is_adult": (self.section == SECTION_ADULT),
+
+            "coming_soon": bool(self.coming_soon),
 
             "source": self.source,
 
