@@ -71,3 +71,18 @@ puis « Importer fiche + chapitres » crée le titre (couverture copiée dans la
   honorer les demandes de retrait (supprimer le titre dans Mangas). Limite ~5 requêtes/s : un seul import à la fois.
 - Un titre classé adulte par MangaDex (erotica / pornographic) n'est importable que dans **La Sainte Culture**, et uniquement en webtoon ou bande dessinée.
 - « Mettre à jour » (icône ↻ dans Mangas) récupère les nouveaux chapitres d'un titre déjà importé.
+
+## Import intelligent (VF, chapitres complets, annonces)
+- **Aperçu avant publication** : pour chaque titre trouvé, l'admin affiche « Chapitres 1 → 12 · 12 chapitre(s) · ✓ complet » (une requête
+  légère `/manga/{id}/aggregate` par titre, en français par défaut). Les trous sont listés (« ⚠ 2 manquants (4, 7) »).
+- **Filtres** : « Séries terminées seulement » (filtre MangaDex) et « Seulement si tous les chapitres existent dans cette langue ». Un titre à
+  0 chapitre dans la langue choisie est masqué et refusé à l'import.
+- **Pas de chapitre 0** : les chapitres sont numérotés à partir du premier qui existe (1 → 12…). Chapitre 0 et chapitres sans numéro sont ignorés ;
+  la création manuelle refuse aussi un numéro ≤ 0. Les lecteurs ne voient **jamais** un titre qui n'a aucun chapitre publié.
+- **Synopsis VF** : celui de MangaDex s'il existe ; sinon traduction automatique gratuite depuis l'anglais (MyMemory, 5 000 caractères/jour sans
+  e-mail, 50 000 avec `MYMEMORY_EMAIL`), signalée « traduit automatiquement » ; sinon l'anglais.
+- **Annonces** : quand un titre public reçoit son **premier chapitre publié** (import ou publication manuelle), chaque utilisateur actif reçoit
+  une notification dans l'application et un message du bot (couverture + bouton « Lire maintenant » qui ouvre directement la fiche). Une seule
+  annonce par titre (`announced_at`). Les titres de La Sainte Culture ne sont annoncés qu'aux utilisateurs ayant confirmé avoir 18 ans.
+  Case « Prévenir les utilisateurs » à décocher pour publier sans annonce. Les utilisateurs qui n'ont jamais démarré le bot reçoivent seulement
+  la notification dans l'application.

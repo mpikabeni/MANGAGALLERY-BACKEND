@@ -175,7 +175,8 @@ def _heal_schema():
     model column would therefore break every query on that table (500 on all pages). This adds what is missing, for
     any table / any column, on PostgreSQL and SQLite, without touching data. Idempotent, safe with several workers."""
     from sqlalchemy import text
-    for table_name, lacking in _missing_columns().items():
+    missing_now = _missing_columns()
+    for table_name, lacking in missing_now.items():
         table = db.metadata.tables[table_name]
         for name in lacking:
             col = table.columns[name]
@@ -188,6 +189,12 @@ def _heal_schema():
                 app.logger.warning("Schema healed: added column %s.%s", table_name, name)
             except Exception as exc:
                 app.logger.warning("Schema: could not add %s.%s (%s)", table_name, name, str(exc).splitlines()[0][:140])
+    if "announced_at" in missing_now.get("mangas", []):
+        try:                                      # titles that already exist were published before: never announce them
+            with db.engine.begin() as conn:
+                conn.execute(text("UPDATE mangas SET announced_at = COALESCE(created_at, CURRENT_TIMESTAMP) WHERE announced_at IS NULL"))
+        except Exception as exc:
+            app.logger.warning("announced_at backfill failed: %s", str(exc).splitlines()[0][:140])
     for index, table_name, column in [("ix_mangas_section", "mangas", "section"), ("ix_mangas_content_type", "mangas", "content_type"),
                                       ("ix_mangas_external_id", "mangas", "external_id")]:
         try:
