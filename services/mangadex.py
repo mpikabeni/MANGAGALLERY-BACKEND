@@ -139,8 +139,8 @@ def _as_list(value):
 
 
 def chapter_summary(manga_id, lang, declared_last=None, status=None):
-    """How many chapters exist in `lang`, from which number to which, and which whole numbers are missing.
-    One light request (/manga/{id}/aggregate). Chapter 0 / unnumbered chapters are ignored."""
+    """How many READABLE chapters exist in `lang`, from which number to which, and which whole numbers are missing.
+    Chapter 0, unnumbered chapters and external-link-only chapters are ignored (exactly like the import)."""
     if not UUID_RE.match(manga_id or ""):
         raise MangaDexError("Identifiant MangaDex invalide.")
     key, now = (manga_id, lang), time.time()
@@ -148,16 +148,17 @@ def chapter_summary(manga_id, lang, declared_last=None, status=None):
     if hit and hit[0] > now:
         base = hit[1]
     else:
-        data = _get(f"/manga/{manga_id}/aggregate", [("translatedLanguage[]", lang)])
+        # Same source of truth as the import (readable chapters only: real pages, not an external link), so what the admin sees
+        # BEFORE publishing is exactly what will be imported. (The /aggregate endpoint also counts external-only chapters:
+        # it showed "12 chapters" for titles that then imported 0.)
         numbers = set()
-        for volume in _as_list(data.get("volumes")):
-            for chapter in _as_list(volume.get("chapters") if isinstance(volume, dict) else None):
-                try:
-                    n = float(chapter.get("chapter"))
-                except (TypeError, ValueError):
-                    continue
-                if n > 0:
-                    numbers.add(n)
+        for ch in chapter_feed(manga_id, lang, groups=False):
+            try:
+                n = float(ch["chapter"])
+            except (TypeError, ValueError):
+                continue
+            if n > 0:
+                numbers.add(n)
         base = {"count": len(numbers), "first": min(numbers) if numbers else None, "last": max(numbers) if numbers else None,
                 "missing": [i for i in range(int(min(numbers)), int(max(numbers)) + 1) if float(i) not in numbers] if numbers else []}
         if len(_SUMMARY) > 500:
@@ -174,12 +175,14 @@ def chapter_summary(manga_id, lang, declared_last=None, status=None):
     return out
 
 
-def chapter_feed(manga_id, lang):
+def chapter_feed(manga_id, lang, groups=True):
     """Readable chapters in `lang`, oldest first. Chapters that only link to an external site (no pages) are skipped."""
     out, offset = [], 0
     while offset < 3000:
         params = [("limit", 500), ("offset", offset), ("translatedLanguage[]", lang), ("order[chapter]", "asc"),
-                  ("includeExternalUrl", 0), ("includes[]", "scanlation_group")]
+                  ("includeExternalUrl", 0)]
+        if groups:
+            params.append(("includes[]", "scanlation_group"))
         params += [("contentRating[]", r) for r in SAFE_RATINGS + ADULT_RATINGS]
         data = _get(f"/manga/{manga_id}/feed", params)
         for item in data.get("data", []):
