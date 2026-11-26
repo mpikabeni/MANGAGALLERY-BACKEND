@@ -11,7 +11,9 @@ import tarfile
 import tempfile
 import zipfile
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageChops, ImageOps
+
+from config import Config
 
 Image.MAX_IMAGE_PIXELS = 120_000_000          # refuse decompression bombs
 
@@ -20,6 +22,10 @@ MAX_PAGES = 400                                 # per upload (a chapter holds 50
 MAX_UNPACKED = 700 * 1024 * 1024                # total size once an archive is opened
 MAX_IMAGE_BYTES = 40 * 1024 * 1024
 PDF_TARGET_WIDTH = 1400
+WEBP_MAX_SIDE = 16383                           # WebP cannot encode a side longer than this: very tall webtoon strips fall back to JPEG
+# Compression profiles for uploaded chapter pages: (max width in px, quality).  Webtoon pages are read on a phone: 900-1100 px is plenty.
+PROFILES = {"eco": (900, 62), "normal": (1100, 72), "hd": (1400, 82)}
+PROFILE_LABELS = {"eco": "Économique", "normal": "Équilibrée", "hd": "Haute qualité"}
 
 
 class ImportFailure(Exception):
@@ -57,8 +63,10 @@ def _junk(name):
     return any(p.startswith(".") or p == "__MACOSX" or p.lower() in ("thumbs.db", "desktop.ini") for p in parts)
 
 
-def optimise(data, max_width=1600, quality=85):
+def optimise(data, max_width=None, quality=None):
     """-> (jpeg_bytes, width, height). Keeps a small JPEG untouched, otherwise recompresses (progressive JPEG)."""
+    max_width = max_width or Config.PAGE_MAX_WIDTH
+    quality = quality or Config.PAGE_JPEG_QUALITY
     if len(data) > MAX_IMAGE_BYTES:
         raise ImportFailure("Image trop lourde (40 Mo maximum par image).")
     try:
@@ -68,7 +76,7 @@ def optimise(data, max_width=1600, quality=85):
     except Exception:
         raise ImportFailure("Fichier image illisible ou corrompu.")
     w, h = img.size
-    if fmt == "JPEG" and w <= max_width and len(data) <= 2_500_000:
+    if fmt == "JPEG" and w <= max_width and len(data) <= 350_000:     # already light: keep as is, anything bigger is recompressed
         return data, w, h
     img = ImageOps.exif_transpose(img)
     if img.mode in ("RGBA", "LA", "P"):
@@ -85,6 +93,60 @@ def optimise(data, max_width=1600, quality=85):
     out = io.BytesIO()
     img.save(out, "JPEG", quality=quality, optimize=True, progressive=True)
     return out.getvalue(), img.width, img.height
+
+
+def _flatten(img):
+    """Orientation fixed, transparency flattened on white, always RGB (or L)."""
+    img = ImageOps.exif_transpose(img)
+    if img.mode in ("RGBA", "LA", "P"):
+        img = img.convert("RGBA")
+        bg = Image.new("RGB", img.size, (255, 255, 255))
+        bg.paste(img, mask=img.split()[-1])
+        return bg
+    return img if img.mode in ("RGB", "L") else img.convert("RGB")
+
+
+def _is_grayscale(img):
+    """True for a black-and-white page stored as colour (very common for scans): saved as grey it is much lighter."""
+    if img.mode == "L":
+        return True
+    t = img.resize((48, 48))
+    r, g, b = t.split()
+    return ImageChops.difference(r, g).getextrema()[1] <= 10 and ImageChops.difference(g, b).getextrema()[1] <= 10
+
+
+def optimise_page(data, profile=None):
+    """-> (bytes, width, height, mime). A chapter page converted for the database: resized to the profile's width, grey when the
+    page has no colour, then WebP (or progressive JPEG when the strip is too tall for WebP). The original bytes are kept when they are
+    already lighter than the conversion."""
+    width, quality = PROFILES.get(profile) or PROFILES[Config.PAGE_PROFILE]
+    if len(data) > MAX_IMAGE_BYTES:
+        raise ImportFailure("Image trop lourde (40 Mo maximum par image).")
+    try:
+        img = Image.open(io.BytesIO(data))
+        fmt = img.format
+        img.load()
+    except Exception:
+        raise ImportFailure("Fichier image illisible ou corrompu.")
+    w0, h0 = img.size
+    img = _flatten(img)
+    if img.width > width:
+        img = img.resize((width, max(1, round(img.height * width / img.width))), Image.LANCZOS)
+    if img.height > 65000:
+        raise ImportFailure("Image trop haute (65 000 pixels maximum).")
+    if img.mode == "RGB" and _is_grayscale(img):
+        img = img.convert("L")
+    out = io.BytesIO()
+    if img.height <= WEBP_MAX_SIDE:
+        img.save(out, "WEBP", quality=quality, method=4)
+        mime = "image/webp"
+    else:
+        img.save(out, "JPEG", quality=min(90, quality + 6), optimize=True, progressive=True)
+        mime = "image/jpeg"
+    result = out.getvalue()
+    if fmt in ("JPEG", "WEBP") and w0 <= width and len(data) <= len(result):
+        return data, w0, h0, "image/webp" if fmt == "WEBP" else "image/jpeg"      # the file was already lighter: keep it untouched
+    return result, img.width, img.height, mime
 
 
 # ------------------------------------------------------------------ readers (generators: one page in memory at a time)
@@ -138,7 +200,7 @@ def _from_pdf(file_storage):
             page = doc.load_page(i)
             zoom = min(2.5, PDF_TARGET_WIDTH / max(page.rect.width, 1))
             pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
-            yield f"page-{i + 1:03d}.jpg", pix.tobytes("jpeg", jpg_quality=88)
+            yield f"page-{i + 1:03d}.jpg", pix.tobytes("jpeg", jpg_quality=92)
         doc.close()
     finally:
         if tmp:

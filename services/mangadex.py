@@ -105,10 +105,14 @@ def parse_manga(item, lang):
     }
 
 
-def search(query, lang="fr", adult=False, offset=0, limit=20, completed_only=False, any_lang=False):
+ORIGINS = {"manhwa": ["ko"], "manhua": ["zh", "zh-hk"], "manga": ["ja"]}      # admin filter: Korean / Chinese / Japanese origin
+
+
+def search(query, lang="fr", adult=False, offset=0, limit=20, completed_only=False, any_lang=False, origin=""):
     params = [("limit", limit), ("offset", offset), ("includes[]", "cover_art")]
     if not any_lang:          # normal mode: only titles that already have chapters in `lang`; "coming" mode: any title
         params += [("hasAvailableChapters", "true"), ("availableTranslatedLanguage[]", lang)]
+    params += [("originalLanguage[]", o) for o in ORIGINS.get(origin, [])]
     if completed_only:
         params.append(("status[]", "completed"))
     params += [("contentRating[]", r) for r in (ADULT_RATINGS if adult else SAFE_RATINGS)]
