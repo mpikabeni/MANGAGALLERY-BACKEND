@@ -40,7 +40,7 @@ def search():
     try:
         items, total = md.search((request.args.get("q") or "").strip()[:100], _lang(), section == SECTION_ADULT,
                                  max(0, request.args.get("offset", 0, type=int)), completed_only=request.args.get("completed") == "1",
-                                 any_lang=request.args.get("coming") == "1")
+                                 any_lang=request.args.get("coming") == "1", origin=request.args.get("format", ""))
     except md.MangaDexError as exc:
         return fail(str(exc), 502)
     ids = [i["id"] for i in items]

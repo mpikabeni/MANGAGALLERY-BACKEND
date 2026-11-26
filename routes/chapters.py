@@ -183,7 +183,8 @@ def create_chapter():
                 visibility=visibility, published_at=datetime.utcnow() if status == "published" else None)
     db.session.add(c)
     db.session.commit()
-    maybe_announce(manga)          # first readable chapter of a public title -> "new title" notification + bot message
+    if data.get("announce") is not False:     # a batch upload sends announce=false, then announces once at the end
+        maybe_announce(manga)      # first readable chapter of a public title -> "new title" notification + bot message
     return jsonify(success=True, message="Chapitre créé", chapter=c.to_dict()), 201
 
 
