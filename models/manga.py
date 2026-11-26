@@ -194,6 +194,8 @@ class Manga(db.Model):
 
     def to_dict(self):
 
+        from services.catalog import SOURCES, source_url      # credits for every import source
+
         return {
             "id": self.id,
 
@@ -221,7 +223,9 @@ class Manga(db.Model):
 
             "source": self.source,
 
-            "source_url": ("https://mangadex.org/title/" + self.external_id) if self.source == "mangadex" and self.external_id else None,
+            "source_url": source_url(self.source, self.external_id),
+
+            "source_label": (SOURCES.get(self.source) or {}).get("label"),
 
             "author_id": self.author_id,
 
