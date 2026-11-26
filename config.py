@@ -81,6 +81,15 @@ class Config:
     # REQUIRED_CHANNEL=off|none|false|0 switches the channel gate off (useful while the bot is not yet admin of the channel)
     # Optional contact e-mail for the free MyMemory translator (raises its quota from 5 000 to 50 000 characters / day)
     MYMEMORY_EMAIL = os.getenv("MYMEMORY_EMAIL", "").strip()
+    # Storage: capacity of the database (Render free = 1024 MB) used for the meter / alerts, and image compression of uploaded pages.
+    DB_CAPACITY_MB = _int("DB_CAPACITY_MB", 1024) or 1024
+    PAGE_MAX_WIDTH = _int("PAGE_MAX_WIDTH", 1400) or 1400          # pixels; 1200 = about 60 % lighter pages than 1600
+    PAGE_JPEG_QUALITY = min(95, max(40, _int("PAGE_JPEG_QUALITY", 78) or 78))
+    # Uploaded chapter pages are converted to WebP (about 30 % lighter than JPEG at the same look). Default compression profile of the admin
+    # upload: eco (900 px, lightest) | normal (1100 px) | hd (1400 px). The admin can still pick another one for each upload.
+    # How many uploaded chapters the server converts at the same time (the others wait in line). Each conversion needs memory: 2 suits a 512 MB host.
+    IMPORT_WORKERS = min(6, max(1, _int("IMPORT_WORKERS", 2) or 2))
+    PAGE_PROFILE = os.getenv("PAGE_PROFILE", "normal").strip().lower() if os.getenv("PAGE_PROFILE", "normal").strip().lower() in ("eco", "normal", "hd") else "normal"
     # How often (hours) "Bientôt" titles are checked and released when complete in their language. 0 = never (button only).
     COMING_SOON_CHECK_HOURS = _int("COMING_SOON_CHECK_HOURS", 6) or 0
     CHANNEL_GATE = _channel_env.lower() not in {"off", "none", "false", "0", "no"}

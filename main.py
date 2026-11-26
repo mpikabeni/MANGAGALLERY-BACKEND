@@ -57,7 +57,7 @@ FAILED_MODULES = {}
 for module, prefix in [
     ("auth", "auth"), ("mangas", "mangas"), ("chapters", "chapters"), ("categories", "categories"), ("users", "users"),
     ("comments", "comments"), ("notifications", "notifications"), ("statistics", "statistics"), ("reports", "reports"),
-    ("media", "media"), ("uploads", "uploads"), ("mangadex", "mangadex"), ("roles", "roles"), ("settings", "settings"),
+    ("media", "media"), ("uploads", "uploads"), ("mangadex", "mangadex"), ("catalog", "catalog"), ("roles", "roles"), ("settings", "settings"),
     ("system", "system"), ("telegram", "telegram"), ("library", "library"),
 ]:
     try:

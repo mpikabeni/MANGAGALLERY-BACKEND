@@ -62,6 +62,34 @@ python bot.py           # bot en long polling (sans webhook)
   400 pages maximum par envoi. Les images d'un chapitre ou d'un titre supprimé sont libérées automatiquement.
 - Les liens d'images (https) restent possibles en complément.
 
+## Les 5 sources d'import (Admin → Importer, un onglet par site)
+| Source | Fichier | Chapitres | Adulte |
+|---|---|---|---|
+| **MangaDex** | `services/mangadex.py`, `routes/mangadex.py` | oui (relayés) | `contentRating` erotica / pornographic |
+| **AniList** (GraphQL) | `services/catalog.py` | non, fiche seulement | filtre `isAdult` |
+| **MyAnimeList** via **Jikan** | `services/catalog.py` | non | genres Hentai (12) + Erotica (49) ; `sfw=true` pour le normal |
+| **Kitsu** | `services/catalog.py` | non | indicateur `nsfw` filtré côté serveur (peu de résultats adultes) |
+| **MangaUpdates** | `services/catalog.py` | non | genre « Adult » ; exclus du normal : Adult, Hentai, Smut |
+
+- Routes : `GET /api/catalog/sources`, `GET /api/catalog/search?source=&q=&section=&format=&offset=`, `POST /api/catalog/import`.
+- Le navigateur n'envoie que l'identifiant : le titre, la couverture et le classement adulte sont relus sur le site à l'import. Un titre adulte ne peut aller que dans La Sainte Culture.
+- Les couvertures ne sont téléchargées que depuis une liste de domaines autorisés (`COVER_HOSTS`), puis stockées dans la base.
+- **Lolicon / shotacon** : refusés sur toutes les sources (genres et tags).
+- Un import « fiche » crée le titre **sans chapitres** : « Bientôt » (public) ou brouillon (masqué). Ajoute ensuite les chapitres dans Chapitres (PDF, CBZ…) ; la première publication le sort de « Bientôt » et prévient les utilisateurs.
+- Filtre d'origine commun aux 5 sources : manhwa (Corée), manhua (Chine), manga (Japon).
+- Le crédit (nom du site + lien) s'affiche sous le synopsis ; synopsis traduits automatiquement de l'anglais (MyMemory).
+- Sans clé API pour les 5 sources. Limites : Jikan ~3 requêtes/s, MangaDex ~5/s.
+
+## Téléversement de chapitres : conversion et lots
+- **Conversion** : chaque page envoyée (PDF, CBZ, ZIP, CBT, images) est redimensionnée puis convertie en **WebP** (environ 30 % plus léger qu'un JPEG équivalent).
+  Les pages sans couleur (scans noir et blanc enregistrés en RVB) passent en niveaux de gris. Une bande de webtoon plus haute que 16 383 px reste en JPEG
+  (limite du format WebP). Les couvertures et bannières restent en JPEG (Telegram).
+- **Profils** (menu « Compression » à l'envoi) : `eco` 900 px, `normal` 1100 px (défaut), `hd` 1400 px. Profil par défaut : variable `PAGE_PROFILE` (`eco`, `normal` ou `hd`).
+- **Plusieurs chapitres** (Admin → Chapitres → « Plusieurs chapitres ») : un fichier = un chapitre, envoyés **en parallèle** (2 à 4 à la fois, au choix ; chaque fichier jusqu'à 150 Mo). Le serveur convertit `IMPORT_WORKERS` chapitres à la fois (2 par défaut) et met les autres en file.
+  Le numéro est lu dans le nom du fichier (« Chapitre 12 », « ch_5.5 », « 012 »…), corrigeable avant l'envoi ; les numéros qui existent déjà sont ignorés.
+  Le titre n'est annoncé aux utilisateurs qu'une seule fois, à la fin du lot (`POST /api/chapters` accepte `announce: false`).
+- Les anciennes pages JPEG déjà stockées ne sont pas modifiées. `/api/uploads/<id>.webp` et `/api/uploads/<id>.jpg` sont servis par la même route.
+
 ## Import MangaDex (fiches + chapitres)
 Admin → **Importer** : recherche un titre sur MangaDex (API publique, sans clé), choisis la section (Galerie ou La Sainte Culture) et le type,
 puis « Importer fiche + chapitres » crée le titre (couverture copiée dans la base) et ses chapitres lisibles dans la langue choisie.
@@ -96,3 +124,19 @@ puis « Importer fiche + chapitres » crée le titre (couverture copiée dans la
   venant de MangaDex est contrôlé ; dès que la série est **terminée et complète en VF** (aucun numéro manquant), tous les chapitres sont importés, le titre quitte
   « Bientôt » et l'annonce part (notification + bot). Render gratuit s'endort : la vérification tourne quand le serveur est éveillé, sinon utilise le bouton.
 - Création manuelle : case « Bientôt » dans « Publier un titre » ; le titre sort tout seul au premier chapitre publié.
+
+## Plus de titres à « 0 chapitre »
+- L'aperçu compte les chapitres **avec la même source que l'import** (le flux de chapitres lisibles : vraies pages, pas de lien externe, numéro > 0). Avant, il utilisait
+  `/aggregate`, qui compte aussi les chapitres « externes » : un titre pouvait afficher « 12 chapitres » puis en importer 0.
+- Dans l'admin, une carte reste **cachée tant que ses chapitres ne sont pas comptés** ; les titres à 0 chapitre ne s'affichent jamais, et la page charge
+  automatiquement les résultats suivants s'il y a moins de 8 titres valides.
+
+## Stockage : compteur, alertes, compression
+- **Compteur** dans la barre latérale de l'admin (toutes les pages) : taille de la base / capacité (`DB_CAPACITY_MB`, 1024 pour Render gratuit), estimation du nombre de
+  chapitres téléversables encore possibles. Bandeau orange à **80 %**, rouge à **95 %**, et un message Telegram à l'administrateur à 80 % puis 95 %.
+- **Envois refusés à 97 %** (HTTP 507) pour ne pas saturer la base, ce qui ferait échouer toute l'application.
+- **Nettoyer** : supprime les images téléversées que plus rien n'utilise (envois annulés, anciennes couvertures ; les images de moins d'une heure sont gardées).
+- **Compression** des pages téléversées : 1400 px et JPEG qualité 78 par défaut (environ 35-40 % plus léger que 1600 px / 85). Réglable avec `PAGE_MAX_WIDTH` et
+  `PAGE_JPEG_QUALITY` (1200 px / 72 ≈ 60 % plus léger). Les petits JPEG (< 350 Ko) sont conservés tels quels.
+- Les imports **MangaDex** ne stockent aucune page : seulement la couverture.
+- Attention : une base Render **gratuite expire 30 jours après sa création** (puis 14 jours de grâce avant suppression) et n'a pas de sauvegarde.
