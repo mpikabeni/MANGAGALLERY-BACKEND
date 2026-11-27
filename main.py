@@ -58,7 +58,7 @@ for module, prefix in [
     ("auth", "auth"), ("mangas", "mangas"), ("chapters", "chapters"), ("categories", "categories"), ("users", "users"),
     ("comments", "comments"), ("notifications", "notifications"), ("statistics", "statistics"), ("reports", "reports"),
     ("media", "media"), ("uploads", "uploads"), ("mangadex", "mangadex"), ("catalog", "catalog"), ("roles", "roles"), ("settings", "settings"),
-    ("system", "system"), ("telegram", "telegram"), ("library", "library"),
+    ("system", "system"), ("maintenance", "maintenance"), ("security", "security"), ("telegram", "telegram"), ("library", "library"),
 ]:
     try:
         blueprint = getattr(importlib.import_module(f"routes.{module}"), f"{module}_bp")

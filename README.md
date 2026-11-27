@@ -100,6 +100,9 @@ choisie à la précédente de même durée.
   (créée automatiquement au démarrage). Les compteurs partent de zéro au déploiement : les anciennes lectures n'avaient pas de date.
 - Tant qu'aucun événement n'est enregistré, les classements (titres, lecteurs) se rabattent sur l'historique de lecture existant.
 - Temps de lecture, signets et partages ne sont mesurés nulle part dans l'application : ils restent à 0.
+- Chaque bloc est calculé séparément et les événements de lecture sont enregistrés à part : un souci sur la table `read_events` n'empêche ni les statistiques de base ni la sauvegarde de la progression.
+- Diagnostic : ouvre `https://TON-BACKEND/health` ; `failed_modules` liste les modules de routes qui n'ont pas pu se charger (avec la cause) et `missing_columns` les colonnes manquantes.
+- `/api/maintenance/cache/clear`, `/api/maintenance/refresh` et `/api/security/*` répondent aux boutons de la page Paramètres (la sécurité renvoie un message clair : les sessions ne sont pas suivies côté serveur).
 
 ## BD et comics avec chapitres : Internet Archive
 - API officielle et gratuite d'archive.org (recherche, métadonnées, téléchargement), sans clé. Collection « comics ».
