@@ -9,7 +9,7 @@ from utils.authz import current_user, require_admin, require_user, viewer_adult_
 from utils.http import fail, like_pattern, paginate, pick, search_term
 from utils.security import clean_multiline, clean_text, is_safe_url
 from routes.uploads import release_urls
-from services.ratings import batch_stats, summary as rating_summary
+from services.ratings import batch_stats, chapter_stats, summary as rating_summary
 from utils.sections import adult_denied, requested_section, requested_type
 from utils.slug import slugify, unique_slug
 
@@ -108,10 +108,14 @@ def get_manga(manga_id):
     cq = Chapter.query.filter_by(manga_id=manga.id)
     if not viewer_is_admin():
         cq = _public_chapters(cq)
+    chapter_rows = cq.order_by(Chapter.number.asc()).all()
+    cstats = chapter_stats([c.id for c in chapter_rows])                 # average + votes of each chapter (votes are given at the end of a chapter)
     data["chapters"] = [{"id": c.id, "number": c.number, "title": c.title,
                          "published_at": c.published_at.isoformat() if c.published_at else None,
-                         "pages_count": len(c.pages or [])}
-                        for c in cq.order_by(Chapter.number.asc()).all()]
+                         "pages_count": len(c.pages or []),
+                         "rating_count": cstats.get(c.id, (0, None))[0],
+                         "rating_avg": round(cstats[c.id][1], 1) if c.id in cstats else None}
+                        for c in chapter_rows]
     return jsonify(success=True, manga=data, **data)
 
 
