@@ -165,8 +165,6 @@ def save_progress():
     p.read_chapters = read[-1000:]
     p.chapter_id, p.chapter_number, p.page, p.total = chapter_id, chapter.number, page, total
     p.updated_at = datetime.utcnow()
-    for kind in events:
-        db.session.add(ReadEvent(user_id=uid, manga_id=manga_id, chapter_id=chapter_id, kind=kind))
     try:
         db.session.commit()
     except Exception:  # two requests created the row at the same time: retry once as an update
@@ -176,6 +174,13 @@ def save_progress():
             return fail("Erreur d'enregistrement", 500)
         p.chapter_id, p.chapter_number, p.page, p.total, p.updated_at = chapter_id, chapter.number, page, total, datetime.utcnow()
         db.session.commit()
+    if events:                                              # statistics are best effort and in their own transaction: they can never break the reading
+        try:
+            for kind in events:
+                db.session.add(ReadEvent(user_id=uid, manga_id=manga_id, chapter_id=chapter_id, kind=kind))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
     return jsonify(success=True)
 
 
