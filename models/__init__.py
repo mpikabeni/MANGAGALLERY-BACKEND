@@ -2,7 +2,7 @@ from .admin import Admin
 from .category import Category
 from .chapter import Chapter
 from .comment import Comment
-from .library import Favorite, ReadingProgress, UserPref
+from .library import Favorite, ReadEvent, ReadingProgress, UserPref
 from .manga import Manga
 from .media import ImportJob, Media, MediaBlob
 from .notification import Notification
@@ -11,5 +11,5 @@ from .role import Role
 from .settings import Settings
 from .user import User
 
-__all__ = ["Admin", "Category", "Chapter", "Comment", "Favorite", "Manga", "Media", "MediaBlob", "ImportJob", "ReadingProgress", "UserPref",
+__all__ = ["Admin", "Category", "Chapter", "Comment", "Favorite", "Manga", "Media", "MediaBlob", "ImportJob", "ReadingProgress", "ReadEvent", "UserPref",
            "Notification", "Report", "Role", "Settings", "User"]

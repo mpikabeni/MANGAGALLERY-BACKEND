@@ -38,3 +38,15 @@ class UserPref(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     data = db.Column(db.JSON, nullable=False, default=dict)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class ReadEvent(db.Model):
+    """One row each time a reader OPENS a chapter ("open") or reaches its last page ("complete"). Feeds the admin statistics
+    (views, readings, top titles, activity chart). Written by PUT /library/progress; the table is created automatically at startup."""
+    __tablename__ = "read_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    manga_id = db.Column(db.Integer, db.ForeignKey("mangas.id", ondelete="CASCADE"), nullable=False, index=True)
+    chapter_id = db.Column(db.Integer, db.ForeignKey("chapters.id", ondelete="SET NULL"), nullable=True)
+    kind = db.Column(db.String(10), nullable=False, default="open")          # open | complete
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
