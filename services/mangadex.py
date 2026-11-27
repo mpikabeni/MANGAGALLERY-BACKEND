@@ -96,6 +96,8 @@ def parse_manga(item, lang):
         "id": item["id"], "title": _title(a, lang) or "Sans titre", "description": _pick(desc_map, lang),
         "description_lang": desc_map.get(lang) or "",          # exact synopsis in the requested language ("" = none)
         "description_en": desc_map.get("en") or "",
+        "description_fr": desc_map.get("fr") or "",             # the synopsis shown in the app is always French
+        "description_other": next(((k, v) for k, v in desc_map.items() if v and k not in ("fr", "en")), None),   # (language, text)
         "has_lang_description": bool(desc_map.get(lang)),
         "declared_last": a.get("lastChapter") or None,         # final chapter number announced by MangaDex (often empty)
         "cover_url": f"{UPLOADS}/covers/{item['id']}/{file_name}.512.jpg" if file_name else None,
