@@ -6,10 +6,11 @@ from .library import Favorite, ReadEvent, ReadingProgress, UserPref
 from .manga import Manga
 from .media import ImportJob, Media, MediaBlob
 from .notification import Notification
+from .rating import Rating
 from .report import Report
 from .role import Role
 from .settings import Settings
 from .user import User
 
 __all__ = ["Admin", "Category", "Chapter", "Comment", "Favorite", "Manga", "Media", "MediaBlob", "ImportJob", "ReadingProgress", "ReadEvent", "UserPref",
-           "Notification", "Report", "Role", "Settings", "User"]
+           "Notification", "Rating", "Report", "Role", "Settings", "User"]
