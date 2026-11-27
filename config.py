@@ -81,6 +81,8 @@ class Config:
     # REQUIRED_CHANNEL=off|none|false|0 switches the channel gate off (useful while the bot is not yet admin of the channel)
     # Optional contact e-mail for the free MyMemory translator (raises its quota from 5 000 to 50 000 characters / day)
     MYMEMORY_EMAIL = os.getenv("MYMEMORY_EMAIL", "").strip()
+    DEEPL_API_KEY = os.getenv("DEEPL_API_KEY", "").strip()            # synopsis translation (free plan: 500 000 characters / month)
+    GOOGLE_BOOKS_KEY = os.getenv("GOOGLE_BOOKS_KEY", "").strip()      # optional: raises the daily quota of the BD source
     # Storage: capacity of the database (Render free = 1024 MB) used for the meter / alerts, and image compression of uploaded pages.
     DB_CAPACITY_MB = _int("DB_CAPACITY_MB", 1024) or 1024
     PAGE_MAX_WIDTH = _int("PAGE_MAX_WIDTH", 1400) or 1400          # pixels; 1200 = about 60 % lighter pages than 1600

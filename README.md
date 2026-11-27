@@ -62,7 +62,7 @@ python bot.py           # bot en long polling (sans webhook)
   400 pages maximum par envoi. Les images d'un chapitre ou d'un titre supprimé sont libérées automatiquement.
 - Les liens d'images (https) restent possibles en complément.
 
-## Les 5 sources d'import (Admin → Importer, un onglet par site)
+## Les 7 sources d'import (Admin → Importer, un onglet par site)
 | Source | Fichier | Chapitres | Adulte |
 |---|---|---|---|
 | **MangaDex** | `services/mangadex.py`, `routes/mangadex.py` | oui (relayés) | `contentRating` erotica / pornographic |
@@ -70,6 +70,8 @@ python bot.py           # bot en long polling (sans webhook)
 | **MyAnimeList** via **Jikan** | `services/catalog.py` | non | genres Hentai (12) + Erotica (49) ; `sfw=true` pour le normal |
 | **Kitsu** | `services/catalog.py` | non | indicateur `nsfw` filtré côté serveur (peu de résultats adultes) |
 | **MangaUpdates** | `services/catalog.py` | non | genre « Adult » ; exclus du normal : Adult, Hentai, Smut |
+| **Internet Archive (BD libres)** | `services/archive.py`, `routes/uploads.py` (`/fetch`) | **oui** : BD complètes (CBZ ou PDF), téléchargées par le serveur et converties en WebP | aucun contenu adulte |
+| **Google Books (BD)** | `services/catalog.py` | non, fiche seulement | `maturityRating` MATURE (peu de BD classées ainsi) ; toujours type « bande dessinée » |
 
 - Routes : `GET /api/catalog/sources`, `GET /api/catalog/search?source=&q=&section=&format=&offset=`, `POST /api/catalog/import`.
 - Le navigateur n'envoie que l'identifiant : le titre, la couverture et le classement adulte sont relus sur le site à l'import. Un titre adulte ne peut aller que dans La Sainte Culture.
@@ -89,6 +91,36 @@ python bot.py           # bot en long polling (sans webhook)
   Le numéro est lu dans le nom du fichier (« Chapitre 12 », « ch_5.5 », « 012 »…), corrigeable avant l'envoi ; les numéros qui existent déjà sont ignorés.
   Le titre n'est annoncé aux utilisateurs qu'une seule fois, à la fin du lot (`POST /api/chapters` accepte `announce: false`).
 - Les anciennes pages JPEG déjà stockées ne sont pas modifiées. `/api/uploads/<id>.webp` et `/api/uploads/<id>.jpg` sont servis par la même route.
+
+## Statistiques admin
+`GET /api/statistics?range=7|30|90|365` renvoie ce que la page attend : `overview`, `activity` (courbe), `content`, `reading`, `engagement`, `top_mangas`,
+`top_users`, `categories`, `recent_activity`, `performance` (+ les anciens totaux à plat pour le tableau de bord). Chaque variation compare la période
+choisie à la précédente de même durée.
+- **Vues** = chapitres ouverts, **Lectures** = chapitres terminés. Ils viennent de la table `read_events`, remplie par `PUT /api/library/progress`
+  (créée automatiquement au démarrage). Les compteurs partent de zéro au déploiement : les anciennes lectures n'avaient pas de date.
+- Tant qu'aucun événement n'est enregistré, les classements (titres, lecteurs) se rabattent sur l'historique de lecture existant.
+- Temps de lecture, signets et partages ne sont mesurés nulle part dans l'application : ils restent à 0.
+
+## BD et comics avec chapitres : Internet Archive
+- API officielle et gratuite d'archive.org (recherche, métadonnées, téléchargement), sans clé. Collection « comics ».
+- **Licence obligatoire** : seuls les livres avec une licence libre explicite sont proposés (domaine public, CC0, CC BY, CC BY-SA). Les licences NC / ND,
+  « tous droits réservés » et l'absence de licence sont refusées, y compris à l'import (le serveur relit la licence, le navigateur n'envoie que l'identifiant).
+  L'auteur et la licence sont écrits dans la fiche, et le lien vers archive.org est le crédit affiché dans l'application.
+- Un clic = fiche + chapitre 1 : `POST /api/catalog/import` crée la fiche, `POST /api/uploads/fetch` télécharge le CBZ (ou le PDF d'origine) depuis archive.org
+  (taille max 150 Mo, redirections limitées à archive.org), puis la conversion habituelle (WebP, profils de qualité) et `POST /api/chapters`.
+- Chaque livre d'Internet Archive est un numéro : une série de plusieurs numéros donne plusieurs fiches. Les CBR (RAR) et EPUB ne sont pas pris en charge.
+- Ce sont surtout des BD du domaine public ou d'auteurs qui les diffusent librement (webcomics sous licence CC) ; pas les albums commerciaux récents.
+
+## Synopsis toujours en français
+- Chaque synopsis importé (MangaDex, AniList, MyAnimeList, Kitsu, MangaUpdates, Google Books) est **traduit en français**, quelle que soit la langue des chapitres choisie.
+  Si le site fournit déjà un synopsis français, il est gardé tel quel ; sinon traduction automatique (mention « Synopsis traduit automatiquement. »).
+- Service (`services/translate.py`) : **DeepL** si `DEEPL_API_KEY` est défini (clé gratuite : 500 000 caractères/mois, qualité bien meilleure), sinon **MyMemory**
+  (sans clé, mais seulement 5 000 caractères/jour : insuffisant pour un vrai catalogue ; `MYMEMORY_EMAIL` monte à 50 000). **Pour du « toujours en français »,
+  crée une clé DeepL gratuite** et ajoute `DEEPL_API_KEY` dans Render.
+- Si aucun service ne répond, le titre est quand même importé avec le texte d'origine, et l'admin le voit dans le message d'import.
+- Bouton **« Traduire en français les synopsis déjà importés »** (Admin → Importer) : traduit quelques titres par appel (`POST /api/catalog/translate-synopses`)
+  jusqu'à la fin, et s'arrête proprement si le quota est atteint.
+- Google Books : clé optionnelle `GOOGLE_BOOKS_KEY` pour augmenter le quota quotidien.
 
 ## Import MangaDex (fiches + chapitres)
 Admin → **Importer** : recherche un titre sur MangaDex (API publique, sans clé), choisis la section (Galerie ou La Sainte Culture) et le type,
