@@ -178,16 +178,20 @@ puis « Importer fiche + chapitres » crée le titre (couverture copiée dans la
 
 ## Notes et classement
 
-Un lecteur peut noter un titre de 1 à 5 étoiles **après avoir terminé au moins un chapitre** (contrôlé côté serveur). Une seule note par lecteur et par titre, modifiable ou retirable.
+Un lecteur note **chaque chapitre** de 1 à 5 étoiles, **à la fin du chapitre**, une fois celui-ci terminé (contrôlé côté serveur). Les titres et les chapitres ont chacun leur classement.
 
 | Route | Rôle |
 |---|---|
-| `GET /api/ratings/manga/<id>` | moyenne, nombre de votes, répartition, ma note, `can_rate` |
-| `PUT /api/ratings/manga/<id>` `{score: 1..5}` | noter / modifier (403 `NOT_READ` si aucun chapitre terminé) |
-| `DELETE /api/ratings/manga/<id>` | retirer ma note |
-| `GET /api/ratings/ranking?period=7d\|30d\|90d\|all&type=&limit=` | classement des mieux notés |
+| `GET /api/ratings/chapter/<id>` | moyenne, nombre de votes, répartition du chapitre, ma note, `can_rate` |
+| `PUT /api/ratings/chapter/<id>` `{score: 1..5}` | noter / modifier ma note du chapitre (403 `NOT_READ` tant que le chapitre n'est pas terminé) |
+| `DELETE /api/ratings/chapter/<id>` | retirer ma note du chapitre |
+| `GET /api/ratings/manga/<id>` | note du titre = tous les votes de ses chapitres (moyenne, nombre, répartition, `my_votes`) |
+| `GET /api/ratings/ranking?period=7d\|30d\|90d\|all&type=&limit=` | classement des **titres** les mieux notés |
+| `GET /api/ratings/ranking/chapters?period=7d\|30d\|90d\|all&type=&limit=` | classement des **chapitres** les mieux notés (chaque ligne contient le titre) |
 
+- Le vote se fait **à la fin de chaque chapitre** (le lecteur affiche les étoiles sur la dernière page). Un vote par lecteur et par chapitre, modifiable.
+- La note d'un titre est calculée à partir des votes de ses chapitres : il n'y a plus de vote direct sur le titre.
 - Le classement d'une période ne compte que les votes donnés pendant cette période.
-- Tri par moyenne pondérée (3 votes « a priori »), pour qu'une seule note à 5 ne passe pas devant un titre noté 4,7 par 200 lecteurs.
-- `rating_avg` / `rating_count` sont ajoutés à chaque titre renvoyé par `/api/mangas` (badge sur les couvertures).
-- La table `ratings` est créée automatiquement au démarrage.
+- Tri par moyenne pondérée (3 votes « a priori »), pour qu'une seule note à 5 ne passe pas devant un titre ou un chapitre noté 4,7 par 200 lecteurs.
+- `rating_avg` / `rating_count` sont ajoutés à chaque titre renvoyé par `/api/mangas` (badge sur les couvertures) et à chaque chapitre de `GET /api/mangas/<id>`.
+- La table `chapter_ratings` est créée automatiquement au démarrage. L'ancienne table `ratings` (un vote par titre) n'est plus lue ; elle peut être supprimée.

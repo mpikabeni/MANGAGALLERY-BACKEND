@@ -14,7 +14,7 @@ from config import Config, validate_config
 from database import db, init_database
 
 # Import every model before create_all / mapper configuration.
-from models import (Admin, Category, Chapter, Comment, Favorite, Manga, Media, Notification, Rating, ReadingProgress,  # noqa: F401
+from models import (Admin, Category, Chapter, Comment, Favorite, Manga, Media, Notification, Rating, ChapterRating, ReadingProgress,  # noqa: F401
                     Report, Role, Settings, User, UserPref)
 
 validate_config()
