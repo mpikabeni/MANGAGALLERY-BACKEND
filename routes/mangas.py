@@ -9,6 +9,7 @@ from utils.authz import current_user, require_admin, require_user, viewer_adult_
 from utils.http import fail, like_pattern, paginate, pick, search_term
 from utils.security import clean_multiline, clean_text, is_safe_url
 from routes.uploads import release_urls
+from services.ratings import batch_stats, summary as rating_summary
 from utils.sections import adult_denied, requested_section, requested_type
 from utils.slug import slugify, unique_slug
 
@@ -32,9 +33,13 @@ def _serialize_batch(rows):
             q = _public_chapters(q)
         stats = {mid: (n, last, first) for mid, n, last, first in q.group_by(Chapter.manga_id)}
     cats = {c.id: c for c in Category.query.filter(Category.id.in_({m.category_id for m in rows if m.category_id})).all()} if rows else {}
+    rstats = batch_stats(ids)                      # average + number of votes, shown on every card
     out = []
     for m in rows:
         d = m.to_dict()
+        rc, ra = rstats.get(m.id, (0, None))
+        d["rating_count"] = rc
+        d["rating_avg"] = round(ra, 1) if rc else None
         n, last, first = stats.get(m.id, (0, None, None))
         d["chapters_count"] = n
         d["last_chapter"] = last
@@ -99,6 +104,7 @@ def get_manga(manga_id):
     if manga.section == SECTION_ADULT and not viewer_adult_ok():
         return adult_denied()
     data = _serialize_batch([manga])[0]
+    data["rating"] = rating_summary(manga.id, current_user().id)
     cq = Chapter.query.filter_by(manga_id=manga.id)
     if not viewer_is_admin():
         cq = _public_chapters(cq)
