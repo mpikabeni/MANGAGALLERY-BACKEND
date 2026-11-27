@@ -17,6 +17,7 @@ from database import db
 from models.chapter import Chapter
 from models.manga import Manga
 from models.media import ImportJob, MediaBlob
+from services import archive
 from services.chapter_import import DiskFile, ImportFailure, MAX_PAGES, PROFILES, ensure_supported, iter_pages, kind_of, natural_key, optimise, optimise_page
 from utils.authz import require_admin
 from utils.http import fail
@@ -131,6 +132,50 @@ def upload_chapter():
     app = current_app._get_current_object()
     threading.Thread(target=_run_job, args=(app, job.id, folder, entries, _public_base(), profile), name="chapter-import", daemon=True).start()
     return jsonify(success=True, job_id=job.id), 202
+
+
+@uploads_bp.post("/fetch")
+@require_admin
+def fetch_chapter():
+    """{identifier, quality}: the SERVER downloads the CBZ / PDF of a free-licensed Internet Archive comic (the browser only sends the
+    identifier) and converts it exactly like an upload. Answers at once with the job id; poll GET /jobs/<id>."""
+    data = request.get_json(silent=True) or {}
+    ident = str(data.get("identifier") or "")
+    if storage_full():
+        return fail(FULL_MESSAGE, 507)
+    profile = data.get("quality") if data.get("quality") in PROFILES else Config.PAGE_PROFILE
+    try:
+        meta = archive.metadata(ident)                       # also refuses anything without a free licence
+        name, _size = archive.pick_file(meta, Config.MAX_CONTENT_LENGTH)
+    except archive.ArchiveError as exc:
+        return fail(str(exc))
+    ImportJob.query.filter(ImportJob.created_at < datetime.utcnow() - timedelta(days=1)).delete(synchronize_session=False)
+    job = ImportJob(id=secrets.token_urlsafe(16), status="processing", done=0)
+    db.session.add(job)
+    db.session.commit()
+    app = current_app._get_current_object()
+    threading.Thread(target=_fetch_job, args=(app, job.id, ident, name, _public_base(), profile), name="chapter-fetch", daemon=True).start()
+    return jsonify(success=True, job_id=job.id, file=name), 202
+
+
+def _fetch_job(app, job_id, ident, name, base, profile):
+    folder = tempfile.mkdtemp(prefix="mgfr_fetch_")
+    path = os.path.join(folder, "0.bin")
+    with app.app_context():
+        try:
+            archive.download(ident, name, path, Config.MAX_CONTENT_LENGTH, on_tick=lambda: _touch(job_id))     # heartbeat while downloading
+        except archive.ArchiveError as exc:
+            shutil.rmtree(folder, ignore_errors=True)
+            _fail_job(job_id, [], str(exc))
+            db.session.remove()
+            return
+        except Exception as exc:
+            app.logger.exception("Archive download failed")
+            shutil.rmtree(folder, ignore_errors=True)
+            _fail_job(job_id, [], f"Téléchargement impossible ({type(exc).__name__}).")
+            db.session.remove()
+            return
+    _run_job(app, job_id, folder, [(path, name)], base, profile)      # converts, saves the pages, removes the folder
 
 
 def _touch(job_id, **fields):

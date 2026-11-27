@@ -16,7 +16,7 @@ from routes.mangas import _check_combo
 from routes.uploads import _public_url, _save
 from services import mangadex as md
 from services.announcements import chapter_stats, maybe_announce
-from services.translate import translate
+from services.translate import NOTE, to_french
 from services.chapter_import import ImportFailure
 from utils.authz import require_admin
 from utils.http import fail
@@ -108,18 +108,23 @@ def sync_chapters(manga):
     return added, len(chapters) - added
 
 
-def _synopsis(info, lang):
-    """-> (text, kind): kind 'vf' (MangaDex has it), 'auto' (machine-translated from English), 'en' or 'none'."""
-    if info["description_lang"]:
-        return info["description_lang"], "vf"
-    english = info["description_en"] or info["description"]
-    if not english:
+def _synopsis(info, lang=None):
+    """-> (text, kind). The synopsis is ALWAYS French, whatever the chapter language:
+    'vf' (MangaDex has a French one), 'auto' (machine-translated), 'en' (translation unavailable: original kept) or 'none'."""
+    if info.get("description_fr"):
+        return info["description_fr"], "vf"
+    source, text = "en", info.get("description_en")
+    if not text and info.get("description_other"):
+        source, text = info["description_other"]
+    text = text or info.get("description") or ""
+    if not text:
         return "", "none"
-    if lang == "fr":
-        french = translate(english)
-        if french:
-            return french + "\n\n(Synopsis traduit automatiquement de l'anglais.)", "auto"
-    return english, "en"
+    result = to_french(text, source)
+    if result and result[1] == "already":
+        return result[0], "vf"
+    if result:
+        return result[0] + "\n\n" + NOTE, "auto"
+    return text, "en"
 
 
 @mangadex_bp.post("/import")

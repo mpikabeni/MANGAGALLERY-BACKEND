@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, request
 
 from database import db
 from models.chapter import Chapter
-from models.library import Favorite, ReadingProgress, UserPref
+from models.library import Favorite, ReadEvent, ReadingProgress, UserPref
 from models.manga import SECTION_ADULT, Manga
 from routes.mangas import _serialize_batch
 from utils.authz import current_user, viewer_adult_ok, viewer_is_admin
@@ -156,11 +156,17 @@ def save_progress():
         p = ReadingProgress(user_id=uid, manga_id=manga_id, read_chapters=[])
         db.session.add(p)
     read = list(p.read_chapters or [])
+    events = []                                              # for the admin statistics (never blocks the reading)
+    if p.chapter_id != chapter_id:
+        events.append("open")                                # a new chapter was opened (or the very first one)
     if total and page >= total and chapter_id not in read:
         read.append(chapter_id)
+        events.append("complete")
     p.read_chapters = read[-1000:]
     p.chapter_id, p.chapter_number, p.page, p.total = chapter_id, chapter.number, page, total
     p.updated_at = datetime.utcnow()
+    for kind in events:
+        db.session.add(ReadEvent(user_id=uid, manga_id=manga_id, chapter_id=chapter_id, kind=kind))
     try:
         db.session.commit()
     except Exception:  # two requests created the row at the same time: retry once as an update
