@@ -14,7 +14,7 @@ from config import Config, validate_config
 from database import db, init_database
 
 # Import every model before create_all / mapper configuration.
-from models import (Admin, Category, Chapter, Comment, Favorite, Manga, Media, Notification, ReadingProgress,  # noqa: F401
+from models import (Admin, Category, Chapter, Comment, Favorite, Manga, Media, Notification, Rating, ReadingProgress,  # noqa: F401
                     Report, Role, Settings, User, UserPref)
 
 validate_config()
@@ -58,7 +58,7 @@ for module, prefix in [
     ("auth", "auth"), ("mangas", "mangas"), ("chapters", "chapters"), ("categories", "categories"), ("users", "users"),
     ("comments", "comments"), ("notifications", "notifications"), ("statistics", "statistics"), ("reports", "reports"),
     ("media", "media"), ("uploads", "uploads"), ("mangadex", "mangadex"), ("catalog", "catalog"), ("roles", "roles"), ("settings", "settings"),
-    ("system", "system"), ("maintenance", "maintenance"), ("security", "security"), ("telegram", "telegram"), ("library", "library"),
+    ("system", "system"), ("maintenance", "maintenance"), ("security", "security"), ("telegram", "telegram"), ("library", "library"), ("ratings", "ratings"),
 ]:
     try:
         blueprint = getattr(importlib.import_module(f"routes.{module}"), f"{module}_bp")

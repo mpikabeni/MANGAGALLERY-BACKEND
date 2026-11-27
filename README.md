@@ -175,3 +175,19 @@ puis « Importer fiche + chapitres » crée le titre (couverture copiée dans la
   `PAGE_JPEG_QUALITY` (1200 px / 72 ≈ 60 % plus léger). Les petits JPEG (< 350 Ko) sont conservés tels quels.
 - Les imports **MangaDex** ne stockent aucune page : seulement la couverture.
 - Attention : une base Render **gratuite expire 30 jours après sa création** (puis 14 jours de grâce avant suppression) et n'a pas de sauvegarde.
+
+## Notes et classement
+
+Un lecteur peut noter un titre de 1 à 5 étoiles **après avoir terminé au moins un chapitre** (contrôlé côté serveur). Une seule note par lecteur et par titre, modifiable ou retirable.
+
+| Route | Rôle |
+|---|---|
+| `GET /api/ratings/manga/<id>` | moyenne, nombre de votes, répartition, ma note, `can_rate` |
+| `PUT /api/ratings/manga/<id>` `{score: 1..5}` | noter / modifier (403 `NOT_READ` si aucun chapitre terminé) |
+| `DELETE /api/ratings/manga/<id>` | retirer ma note |
+| `GET /api/ratings/ranking?period=7d\|30d\|90d\|all&type=&limit=` | classement des mieux notés |
+
+- Le classement d'une période ne compte que les votes donnés pendant cette période.
+- Tri par moyenne pondérée (3 votes « a priori »), pour qu'une seule note à 5 ne passe pas devant un titre noté 4,7 par 200 lecteurs.
+- `rating_avg` / `rating_count` sont ajoutés à chaque titre renvoyé par `/api/mangas` (badge sur les couvertures).
+- La table `ratings` est créée automatiquement au démarrage.
